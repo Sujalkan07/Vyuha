@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(${summary.eventName} + ' — Reports & Exports')}"></head>
+<body th:replace="~{fragments/layout :: page(${summary.eventName} + ' — Reports & Exports', 'events', ${eventId}, 'reports', ~{::section})}">
+<section class="stack">
+    <div class="page-header">
+        <div>
+            <div class="badge-row" style="margin-bottom: 6px;">
+                <span class="badge"
+                      th:classappend="${summary.safetyReviewBadgeClass}"
+                      th:text="${summary.safetyReviewLabel}">Review Pending</span>
+                <span class="badge"
+                      th:classappend="${summary.capacityBadgeClass}"
+                      th:text="${summary.capacityStatusLabel}">Pending Review</span>
+                <span th:if="${summary.demoCampusFestival}" class="badge badge-info">Flagship Demo Event</span>
+            </div>
+            <h1>Planning Reports &amp; Structured Exports</h1>
+            <p class="page-header-subtitle">
+                Export printable A4 safety reports, 12-sheet Excel workbooks, modular CSV datasets, and high-resolution layout PNG snapshots.
+            </p>
+        </div>
+
+        <div class="filter-actions no-print">
+            <form th:if="${canResetDemo and summary.demoCampusFestival}"
+                  th:action="@{/events/{id}/reports/demo-reset(id=${eventId})}"
+                  method="post"
+                  style="display: inline;">
+                <button type="submit" class="btn btn-secondary btn-sm"
+                        onclick="return confirm('Reset TechnoVyuha Annual Campus Festival back to the clean seeded walkthrough state?');">
+                    Reset Demo Event
+                </button>
+            </form>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="window.print()">Print Summary</button>
+        </div>
+    </div>
+
+    <div th:if="${successMessage}" class="banner banner-info" role="status" th:text="${successMessage}">Success</div>
+    <div th:if="${errorMessage}" class="banner banner-danger" role="alert" th:text="${errorMessage}">Error</div>
+
+    <!-- Top KPI Row (max 4 KPI cards per design.md) -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-label">Report Sections Ready</div>
+            <div class="kpi-value" th:text="${summary.readySectionCount + ' / ' + summary.totalSectionCount}">0 / 10</div>
+            <div class="kpi-sub">Unified workspace modules</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Active Critical / High Findings</div>
+            <div class="kpi-value" th:text="${summary.activeCriticalOrHighFindings}">0</div>
+            <div class="kpi-sub">Conflicts, bottlenecks, staff &amp; emergency</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Human Safety Review</div>
+            <div class="kpi-value" style="font-size: 16px; line-height: 1.8;">
+                <span class="badge" th:classappend="${summary.safetyReviewBadgeClass}"
+                      th:text="${summary.safetyReviewLabel}">Review Pending</span>
+            </div>
+            <div class="kpi-sub">Reviewer sign-off remains human-led</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Simulation Comparison</div>
+            <div class="kpi-value" style="font-size: 16px; line-height: 1.8;">
+                <span class="badge" th:classappend="${summary.simulationBadgeClass}"
+                      th:text="${summary.simulationStatusLabel}">Not Run</span>
+            </div>
+            <div class="kpi-sub">Relative layout comparison only</div>
+        </div>
+    </div>
+
+    <!-- 2-Column Split (65% Left Exports & Sections / 35% Right Disclaimers & Audit Log) -->
+    <div class="grid-2col">
+        <div class="stack">
+            <!-- Direct Download Hub -->
+            <div class="card no-print">
+                <div class="card-header">
+                    <h2 class="section-title">Download Center</h2>
+                    <span class="text-muted" style="font-size: 12px;">100% offline local generation</span>
+                </div>
+                <div class="card-body stack">
+                    <div class="filter-actions" style="flex-wrap: wrap; gap: 10px;">
+                        <a th:href="@{/api/events/{id}/reports/export.pdf(id=${eventId})}"
+                           class="btn btn-primary">
+                            Download Printable PDF Report
+                        </a>
+                        <a th:href="@{/api/events/{id}/reports/export.xlsx(id=${eventId})}"
+                           class="btn btn-secondary">
+                            Download Excel Workbook (.xlsx)
+                        </a>
+                        <a th:href="@{/api/events/{id}/reports/snapshot.png(id=${eventId}, view='layout')}"
+                           class="btn btn-secondary">
+                            Layout Snapshot (.png)
+                        </a>
+                        <a th:if="${summary.hasComparison}"
+                           th:href="@{/api/events/{id}/reports/snapshot.png(id=${eventId}, view='comparison')}"
+                           class="btn btn-secondary">
+                            Before/After Comparison (.png)
+                        </a>
+                    </div>
+
+                    <form th:action="@{/api/events/{id}/reports/export.csv(id=${eventId})}"
+                          method="get"
+                          class="filter-bar"
+                          style="padding-top: 8px; border-top: 1px solid var(--border);">
+                        <div class="filter-field" style="flex: 1;">
+                            <label for="csvDataset" class="form-label">CSV Dataset Export</label>
+                            <select id="csvDataset" name="dataset" class="form-control">
+                                <option th:each="opt : ${summary.csvDatasets}"
+                                        th:value="${opt.key}"
+                                        th:text="${opt.label + ' — ' + opt.description}">Dataset</option>
+                            </select>
+                        </div>
+                        <div class="filter-actions">
+                            <button type="submit" class="btn btn-secondary">Download CSV</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Included Report Sections & Readiness -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Included Report Sections &amp; Readiness</h2>
+                    <span class="mono text-muted" th:text="${summary.readySectionCount + ' ready'}">0 ready</span>
+                </div>
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Section</th>
+                                <th>Readiness</th>
+                                <th>Summary</th>
+                                <th class="no-print">Workspace</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="sec : ${summary.sections}">
+                                <td class="mono" th:text="${sec.sectionNumber}">1</td>
+                                <td style="font-weight: 600;" th:text="${sec.title}">Section Title</td>
+                                <td>
+                                    <span class="badge" th:classappend="${sec.badgeClass}"
+                                          th:text="${sec.statusLabel}">Ready</span>
+                                </td>
+                                <td style="font-size: 13px;" th:text="${sec.detailSummary}">Summary</td>
+                                <td class="no-print">
+                                    <a th:href="${sec.targetHref}" class="btn btn-ghost btn-sm">Open</a>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="stack">
+            <!-- Mandatory Disclaimers -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Mandatory Safety &amp; Methodological Notices</h2>
+                </div>
+                <div class="card-body stack">
+                    <div class="banner banner-info" th:text="${decisionSupportNotice}">
+                        Decision-support notice
+                    </div>
+                    <div class="banner banner-warn" th:text="${simulationDisclaimer}">
+                        Simulation disclaimer
+                    </div>
+                    <div class="banner banner-warn" th:text="${emergencyNotice}">
+                        Emergency deference notice
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Export Audit History -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Recent Export Audit Log</h2>
+                    <span class="mono text-muted" th:text="${#lists.size(summary.recentExports) + ' records'}">0 records</span>
+                </div>
+                <div th:if="${#lists.isEmpty(summary.recentExports)}" class="card-body">
+                    <div class="empty-state">
+                        <p>No exports generated yet. Download a PDF, Excel workbook, CSV, or PNG snapshot to record an audit entry.</p>
+                    </div>
+                </div>
+                <div th:if="${!#lists.isEmpty(summary.recentExports)}" class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Format</th>
+                                <th>File &amp; Scope</th>
+                                <th class="num">Size</th>
+                                <th>Exported</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="ex : ${summary.recentExports}">
+                                <td>
+                                    <span class="badge badge-neutral" th:text="${ex.format.name()}">PDF</span>
+                                </td>
+                                <td>
+                                    <div style="font-weight: 600; font-size: 13px;" th:text="${ex.filename}">report.pdf</div>
+                                    <div class="text-muted" style="font-size: 12px;" th:text="${ex.scope + ' · ' + ex.exportedByName}">full-report</div>
+                                </td>
+                                <td class="num mono"
+                                    th:text="${ex.fileSizeBytes >= 1024 ? ((ex.fileSizeBytes / 1024) + ' KB') : (ex.fileSizeBytes + ' B')}">
+                                    120 KB
+                                </td>
+                                <td class="mono" style="font-size: 12px;"
+                                    th:text="${@fmt.utc(ex.exportedAt)}">2026-11-20</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+</body>
+</html>

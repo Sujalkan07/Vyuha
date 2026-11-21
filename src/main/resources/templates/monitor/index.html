@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(${event.name} + ' — Live Ops')}"></head>
+<body th:replace="~{fragments/layout :: page(${event.name} + ' — Live Ops', 'events', ${event.id}, 'live', ~{::section})}">
+<section class="stack" id="liveMonitorRoot"
+         th:attr="data-event-id=${event.id},data-can-edit=${canEdit},data-can-ack=${canAcknowledge},data-initial-state=${initialStateJson}">
+    <div class="page-header">
+        <div>
+            <div class="badge-row" style="margin-bottom: 6px;">
+                <span class="badge"
+                      th:classappend="${controlCentre.mode == 'PRACTICE'} ? 'badge-low' : 'badge-info'"
+                      id="headerModeBadge"
+                      th:text="${controlCentre.mode == 'PRACTICE'} ? 'Practice Simulation Mode' : 'Live Operations Mode'">
+                    Live Operations Mode
+                </span>
+                <span class="badge badge-neutral" th:text="${event.status.displayName}">Planning</span>
+                <span class="badge badge-neutral" th:text="${event.category.displayName}">Category</span>
+                <span id="sseStatusPill" class="sse-pill">Connecting stream...</span>
+            </div>
+            <h1>Live Event Monitoring Control Centre</h1>
+            <p class="page-header-subtitle">
+                Real-time zone occupancy, strictly segregated data channels, attendee pass scanning, and threshold/staleness alerting.
+            </p>
+        </div>
+
+        <div class="filter-actions">
+            <div class="subtab-bar" role="group" aria-label="Monitoring mode switcher">
+                <a th:href="@{/events/{id}/live(id=${event.id}, mode='LIVE', source='MANUAL_STAFF')}"
+                   id="modeLiveBtn"
+                   class="subtab-link"
+                   th:classappend="${controlCentre.mode == 'LIVE'} ? ' active' : ''">Live Event</a>
+                <a th:href="@{/events/{id}/live(id=${event.id}, mode='PRACTICE')}"
+                   id="modePracticeBtn"
+                   class="subtab-link"
+                   th:classappend="${controlCentre.mode == 'PRACTICE'} ? ' active' : ''">Practice Simulation</a>
+            </div>
+            <a th:href="@{/field(eventId=${event.id})}" class="btn btn-secondary btn-sm">Field Staff View</a>
+        </div>
+    </div>
+
+    <div th:if="${successMessage}" class="banner banner-info" role="status" th:text="${successMessage}">Success</div>
+    <div th:if="${errorMessage}" class="banner banner-danger" role="alert" th:text="${errorMessage}">Error</div>
+    <div id="liveActionFeedback" class="banner banner-info" style="display: none;" role="status"></div>
+
+    <!-- Source Segregation & Practice Mode Banners -->
+    <div class="monitor-mode-bar">
+        <div id="liveSourceSegregationBanner" class="banner banner-info" style="flex: 1;"
+             th:style="${controlCentre.mode == 'LIVE'} ? 'flex: 1;' : 'display: none; flex: 1;'">
+            <strong>Strict Source Segregation:</strong> <span class="mono">MANUAL_STAFF</span>, <span class="mono">PASS_SCAN</span>, and <span class="mono">PRACTICE_SIMULATION</span> counts are never blended into one total. Switch channels to inspect each independent telemetry stream.
+        </div>
+        <div id="practiceIsolationBanner" class="banner banner-warn" style="flex: 1;"
+             th:style="${controlCentre.mode == 'PRACTICE'} ? 'flex: 1;' : 'display: none; flex: 1;'">
+            <strong>Practice Simulation Channel (<span class="mono">PRACTICE_SIMULATION</span>):</strong> Displaying dry-run simulation counts for staff drills only. Live operational counts and attendee pass records remain completely isolated and untouched.
+        </div>
+
+        <div id="liveSourceSwitchWrap" class="subtab-bar"
+             th:style="${controlCentre.mode == 'LIVE'} ? '' : 'display: none;'">
+            <a th:href="@{/events/{id}/live(id=${event.id}, mode='LIVE', source='MANUAL_STAFF')}"
+               id="sourceManualBtn"
+               class="subtab-link"
+               th:classappend="${controlCentre.activeSource.name() == 'MANUAL_STAFF'} ? ' active' : ''">
+                Manual Count
+                <span class="subtab-count" id="sourceManualPillCount" th:text="${controlCentre.manualSummary.totalCount}">0</span>
+            </a>
+            <a th:href="@{/events/{id}/live(id=${event.id}, mode='LIVE', source='PASS_SCAN')}"
+               id="sourcePassBtn"
+               class="subtab-link"
+               th:classappend="${controlCentre.activeSource.name() == 'PASS_SCAN'} ? ' active' : ''">
+                Pass Scan
+                <span class="subtab-count" id="sourcePassPillCount" th:text="${controlCentre.passScanSummary.totalCount}">0</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Top KPI Row (Strictly max 4 KPI cards per design.md) -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-label">Active Channel Occupancy</div>
+            <div id="kpiActiveTotal" class="kpi-value"
+                 th:text="${controlCentre.activeChannel.totalCount}">0</div>
+            <div id="kpiActiveMeta" class="kpi-sub">
+                <span class="badge" th:classappend="${controlCentre.activeChannel.badgeClass}"
+                      th:text="${controlCentre.activeChannel.shortLabel}">Manual Count</span>
+                <span class="mono" th:text="${'Updated: ' + @fmt.utc(controlCentre.activeChannel.lastUpdatedAt)}">Updated: —</span>
+                <span th:if="${controlCentre.activeChannel.stale}" class="badge badge-low">STALE</span>
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Net Pass Check-Ins</div>
+            <div id="kpiPassCheckedIn" class="kpi-value"
+                 th:text="${controlCentre.passSummary.checkedInCount}">0</div>
+            <div id="kpiPassMeta" class="kpi-sub">
+                <span class="badge badge-verified">Pass Scan</span>
+                <span class="mono"
+                      th:text="${controlCentre.passSummary.totalIssued + ' issued · ' + controlCentre.passSummary.checkedOutCount + ' out'}">0 issued</span>
+                <span class="mono" th:text="${'Updated: ' + @fmt.utc(controlCentre.passSummary.lastScannedAt)}">Updated: —</span>
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Holding / Queue Pressure</div>
+            <div id="kpiHoldingCount" class="kpi-value"
+                 th:text="${controlCentre.queuePressure.holdingCapacity > 0 ? (controlCentre.queuePressure.currentHoldingCount + ' / ' + controlCentre.queuePressure.holdingCapacity) : controlCentre.queuePressure.currentHoldingCount}">0</div>
+            <div id="kpiHoldingMeta" class="kpi-sub">
+                <span class="badge" th:classappend="${controlCentre.activeChannel.badgeClass}"
+                      th:text="${controlCentre.activeChannel.shortLabel}">Source</span>
+                <span class="mono"
+                      th:text="${controlCentre.queuePressure.holdingUtilizationPct != null ? (#numbers.formatDecimal(controlCentre.queuePressure.holdingUtilizationPct, 1, 1) + '% load') : 'No cap'}">0%</span>
+                <span class="mono" th:text="${'Updated: ' + @fmt.utc(controlCentre.queuePressure.lastUpdatedAt)}">Updated: —</span>
+                <span th:if="${controlCentre.queuePressure.stale}" class="badge badge-low">STALE</span>
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">On-Duty Staff &amp; Active Alerts</div>
+            <div id="kpiStaffAndAlerts" class="kpi-value"
+                 th:text="${controlCentre.staffDuty.onDutyNowCount + ' / ' + controlCentre.staffDuty.totalStaffCount}">0 / 0</div>
+            <div id="kpiStaffMeta" class="kpi-sub mono"
+                 th:text="${#lists.size(controlCentre.activeAlerts) + ' active alerts · ' + controlCentre.staffDuty.openIncidentCount + ' open incidents'}">
+                0 active alerts · 0 open incidents
+            </div>
+        </div>
+    </div>
+
+    <!-- 2-Column Workspace (65% Left Heatmap, Zones & Passes / 35% Right Alerts, Rules & Readiness) -->
+    <div class="grid-2col">
+        <!-- LEFT COLUMN (65%) -->
+        <div class="stack">
+            <!-- Live Color-Coded Zone Heatmap Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="section-title">Live Zone Congestion Heatmap</h2>
+                        <div class="text-muted" style="font-size: 12px;">
+                            Zone colors reflect only the selected channel relative to reviewed zone capacity. Hover any zone for source &amp; age.
+                        </div>
+                    </div>
+                    <span id="heatmapChannelBadge" class="badge"
+                          th:classappend="${controlCentre.activeChannel.badgeClass}"
+                          th:text="${controlCentre.activeChannel.shortLabel}">Manual Count</span>
+                </div>
+
+                <!-- Practice Simulation Controls (Visible in PRACTICE mode) -->
+                <div id="practiceToolbar" class="monitor-toolbar"
+                     th:style="${controlCentre.mode == 'PRACTICE'} ? '' : 'display: none;'">
+                    <div class="emergency-map-toolgroup">
+                        <label class="form-label" for="practiceRunSelect" style="margin: 0; font-size: 12px;">Source Run:</label>
+                        <select id="practiceRunSelect" class="form-control" style="width: auto; padding: 4px 8px; font-size: 12px;">
+                            <option value="">Built-in Practice Dry-Run Drill</option>
+                            <option th:each="r : ${controlCentre.practiceRuns}"
+                                    th:value="${r.runId}"
+                                    th:text="${r.label + ' (' + r.scenarioDisplayName + ', ' + r.frameCount + ' frames)'}">Run</option>
+                        </select>
+                        <span id="practiceFrameInfo" class="mono text-secondary" style="font-size: 12px;">Frame 0</span>
+                    </div>
+                    <div class="emergency-map-toolgroup" th:if="${canEdit}">
+                        <button type="button" id="practicePlayBtn" class="btn btn-primary btn-sm">Play Drill</button>
+                        <button type="button" id="practiceStepBtn" class="btn btn-secondary btn-sm">Step Frame</button>
+                        <button type="button" id="practiceClearBtn" class="btn btn-ghost btn-sm" style="color: var(--sev-critical);">Clear Practice</button>
+                    </div>
+                </div>
+
+                <div class="emergency-map-viewport" id="monitorCanvasViewport">
+                    <canvas id="monitorHeatmapCanvas" class="emergency-map-canvas"
+                            aria-label="Live zone congestion heatmap"></canvas>
+
+                    <div id="monitorHoverTooltip" class="monitor-tooltip" style="display: none;"></div>
+
+                    <div class="emergency-map-zoom" aria-label="Heatmap zoom controls">
+                        <button type="button" id="monZoomOutBtn" class="btn btn-ghost btn-sm" title="Zoom Out">-</button>
+                        <button type="button" id="monZoom100Btn" class="btn btn-ghost btn-sm mono" title="Reset Zoom">100%</button>
+                        <button type="button" id="monZoomInBtn" class="btn btn-ghost btn-sm" title="Zoom In">+</button>
+                        <button type="button" id="monZoomFitBtn" class="btn btn-ghost btn-sm" title="Fit Venue">Fit</button>
+                    </div>
+
+                    <div class="emergency-map-legend">
+                        <div class="emergency-legend-header">
+                            <strong>Load Legend</strong>
+                            <button type="button" id="monLegendToggleBtn" class="btn btn-ghost btn-sm" style="padding: 1px 6px; font-size: 11px;">Hide</button>
+                        </div>
+                        <div id="monLegendList" class="emergency-legend-list">
+                            <div class="emergency-legend-item">
+                                <span class="emergency-legend-swatch" style="background: rgba(15, 118, 110, 0.28); border-color: #0F766E;"></span>
+                                <span>&lt; 60% Capacity</span>
+                            </div>
+                            <div class="emergency-legend-item">
+                                <span class="emergency-legend-swatch" style="background: rgba(180, 83, 9, 0.28); border-color: #B45309;"></span>
+                                <span>60–80% Capacity</span>
+                            </div>
+                            <div class="emergency-legend-item">
+                                <span class="emergency-legend-swatch" style="background: rgba(194, 65, 12, 0.34); border-color: #C2410C;"></span>
+                                <span>80–95% Warning</span>
+                            </div>
+                            <div class="emergency-legend-item">
+                                <span class="emergency-legend-swatch" style="background: rgba(185, 28, 28, 0.38); border-color: #B91C1C;"></span>
+                                <span>&gt; 95% Critical</span>
+                            </div>
+                            <div class="emergency-legend-item">
+                                <span class="emergency-legend-swatch" style="background: rgba(148, 163, 184, 0.35); border-color: #64748B;"></span>
+                                <span>Stale (Hatched)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="emergency-map-statusbar">
+                    <span id="monCursorCoords" class="mono">X: 0.0 m, Y: 0.0 m</span>
+                    <span class="mono" id="monLastEvalText"
+                          th:text="${'Evaluated: ' + @fmt.utc(controlCentre.evaluatedAt)}">Evaluated: —</span>
+                </div>
+            </div>
+
+            <!-- Live Zone Occupancy Table Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="section-title">Zone Occupancy Breakdown</h2>
+                        <div class="text-muted" style="font-size: 12px;">
+                            Every row displays exact source tag, timestamp, reviewed capacity, and staleness state.
+                        </div>
+                    </div>
+                    <span id="zoneCountBadge" class="mono text-muted"
+                          th:text="${#lists.size(controlCentre.zones) + ' zones'}">0 zones</span>
+                </div>
+
+                <div class="card-body stack">
+                    <div id="zonesEmptyState" class="empty-state"
+                         th:style="${#lists.isEmpty(controlCentre.zones)} ? '' : 'display: none;'">
+                        <p>No functional zones defined yet. Paint zones in Venue Plan &rarr; Zones &amp; Grid to enable live zone monitoring.</p>
+                        <a th:href="@{/events/{id}/venue(id=${event.id}, mode='zones')}" class="btn btn-secondary btn-sm">Open Zones &amp; Grid</a>
+                    </div>
+
+                    <div id="zonesTableWrap" class="table-wrap"
+                         th:style="${!#lists.isEmpty(controlCentre.zones)} ? '' : 'display: none;'">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Zone</th>
+                                    <th class="num">Reviewed Cap</th>
+                                    <th class="num">Count</th>
+                                    <th class="num">Load %</th>
+                                    <th>Source &amp; Updated</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="zoneOccupancyTableBody">
+                                <tr th:each="z : ${controlCentre.zones}">
+                                    <td>
+                                        <strong class="mono" th:text="${z.zoneCode}">AUD-1</strong>
+                                        <div class="text-secondary" style="font-size: 12px;" th:text="${z.zoneName}">Audience</div>
+                                    </td>
+                                    <td class="num" th:text="${z.reviewedCapacity != null ? z.reviewedCapacity : '—'}">0</td>
+                                    <td class="num" th:text="${z.currentCount != null ? z.currentCount : '—'}">—</td>
+                                    <td class="num">
+                                        <span th:text="${z.occupancyPct != null ? (#numbers.formatDecimal(z.occupancyPct, 1, 1) + '%') : '—'}">—</span>
+                                        <div th:if="${z.currentDensityPsm != null}" class="text-muted" style="font-size: 11px;"
+                                             th:text="${#numbers.formatDecimal(z.currentDensityPsm, 1, 2) + ' p/m²'}">0.00 p/m²</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge" th:classappend="${z.sourceBadgeClass}" th:text="${z.sourceShortLabel}">Source</span>
+                                        <div class="mono text-muted" style="font-size: 11px; margin-top: 2px;"
+                                             th:text="${@fmt.utc(z.lastUpdatedAt)}">—</div>
+                                        <div th:if="${z.recordedBy != null}" class="text-muted" style="font-size: 11px;"
+                                             th:text="${z.recordedBy}">Operator</div>
+                                    </td>
+                                    <td>
+                                        <div class="badge-row">
+                                            <span class="badge" th:classappend="${z.bandBadgeClass}" th:text="${z.bandLabel}">No Reading</span>
+                                            <span th:if="${z.stale}" class="badge badge-low">STALE</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Quick Manual Zone Count Entry (Admin/Organizer in Live mode) -->
+                    <details th:if="${canEdit and !#lists.isEmpty(controlCentre.zones)}"
+                             id="manualCountPanel" class="details-panel"
+                             th:style="${controlCentre.mode == 'LIVE'} ? '' : 'display: none;'">
+                        <summary>+ Record Manual Staff Zone Count (<span class="mono">MANUAL_STAFF</span>)</summary>
+                        <form id="manualCountForm" th:action="@{/events/{id}/live/readings(id=${event.id})}"
+                              method="post" class="stack" style="margin-top: 8px;">
+                            <div class="form-grid-2">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="manualZoneSelect">Zone</label>
+                                    <select id="manualZoneSelect" name="zoneId" class="form-control" required>
+                                        <option th:each="z : ${controlCentre.zones}" th:value="${z.zoneId}"
+                                                th:text="${z.zoneCode + ' · ' + z.zoneName}">Zone</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="manualCountInput">Headcount</label>
+                                    <input id="manualCountInput" name="countValue" type="number" min="0" max="1000000"
+                                           required class="form-control mono" placeholder="e.g., 145">
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="manualNoteInput">Field Note (Optional)</label>
+                                <input id="manualNoteInput" name="note" type="text" maxlength="500" class="form-control"
+                                       placeholder="Visual headcount check at main barrier">
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm">Submit Manual Count</button>
+                        </form>
+                    </details>
+                </div>
+            </div>
+
+            <!-- Attendee Passes & QR Check-In/Out Card (Visible in LIVE mode) -->
+            <div id="passManagementCard" class="card"
+                 th:style="${controlCentre.mode == 'LIVE'} ? '' : 'display: none;'">
+                <div class="card-header">
+                    <div>
+                        <h2 class="section-title">Attendee Passes &amp; QR Gate Scanner (<span class="mono">PASS_SCAN</span>)</h2>
+                        <div class="text-muted" style="font-size: 12px;">
+                            Generate unique <span class="mono">VYU-XXXX-XXXX</span> QR passes and track entry/exit scans without duplicate check-ins.
+                        </div>
+                    </div>
+                    <div class="badge-row">
+                        <span class="badge badge-verified mono" id="passCheckedInPill"
+                              th:text="${controlCentre.passSummary.checkedInCount + ' IN'}">0 IN</span>
+                        <span class="badge badge-info mono" id="passCheckedOutPill"
+                              th:text="${controlCentre.passSummary.checkedOutCount + ' OUT'}">0 OUT</span>
+                        <span class="badge badge-neutral mono" id="passIssuedPill"
+                              th:text="${controlCentre.passSummary.totalIssued + ' TOTAL'}">0 TOTAL</span>
+                    </div>
+                </div>
+
+                <div class="card-body stack">
+                    <div th:if="${canEdit}" class="form-grid-2">
+                        <form id="passBatchForm" th:action="@{/events/{id}/live/passes/batch(id=${event.id})}"
+                              method="post" class="details-panel stack">
+                            <strong style="font-size: 13px;">Generate Unique Pass Batch</strong>
+                            <div class="form-grid-2">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="batchCountInput">Pass Count</label>
+                                    <input id="batchCountInput" name="count" type="number" min="1" max="200" value="10"
+                                           required class="form-control mono">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="batchPrefixInput">Label Prefix</label>
+                                    <input id="batchPrefixInput" name="labelPrefix" type="text" maxlength="80"
+                                           class="form-control" placeholder="General Entry">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-secondary btn-sm">Generate Passes &amp; QR Codes</button>
+                        </form>
+
+                        <form id="passScanForm" th:action="@{/events/{id}/live/passes/scan(id=${event.id})}"
+                              method="post" class="details-panel stack">
+                            <strong style="font-size: 13px;">Gate Check-In / Check-Out Scan</strong>
+                            <div class="form-grid-2">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="scanPassCodeInput">Pass Code</label>
+                                    <input id="scanPassCodeInput" name="passCode" type="text" maxlength="32" required
+                                           class="form-control mono" placeholder="VYU-XXXX-XXXX">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="scanActionSelect">Scan Action</label>
+                                    <select id="scanActionSelect" name="action" class="form-control" required>
+                                        <option th:each="act : ${scanActions}" th:value="${act.name()}" th:text="${act.displayName}">Entry Check-In</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-grid-2">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="scanGateSelect">Gate (Optional)</label>
+                                    <select id="scanGateSelect" name="gateId" class="form-control">
+                                        <option value="">Any Gate</option>
+                                        <option th:each="g : ${controlCentre.gates}" th:value="${g.id}" th:text="${g.label}">Gate</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="scanZoneSelect">Zone (Optional)</label>
+                                    <select id="scanZoneSelect" name="zoneId" class="form-control">
+                                        <option value="">Auto from Gate</option>
+                                        <option th:each="z : ${controlCentre.zones}" th:value="${z.zoneId}"
+                                                th:text="${z.zoneCode + ' · ' + z.zoneName}">Zone</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-actions" style="margin-top: 2px;">
+                                <button type="submit" class="btn btn-primary btn-sm">Record Pass Scan</button>
+                                <label class="btn btn-ghost btn-sm" style="margin: 0; cursor: pointer;">
+                                    Scan QR Image
+                                    <input id="scanQrImageInput" type="file" accept="image/png,image/jpeg,image/webp" style="display: none;">
+                                </label>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div id="passesEmptyState" class="empty-state" style="padding: 18px 10px;"
+                         th:style="${#lists.isEmpty(controlCentre.recentPasses)} ? 'padding: 18px 10px;' : 'display: none;'">
+                        <p>No attendee passes generated yet. Generate a pass batch above to issue scannable QR codes.</p>
+                    </div>
+
+                    <div id="passesTableWrap" class="table-wrap"
+                         th:style="${!#lists.isEmpty(controlCentre.recentPasses)} ? '' : 'display: none;'">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Pass Code</th>
+                                    <th>Holder</th>
+                                    <th>Status</th>
+                                    <th>Last Gate / Zone</th>
+                                    <th>Last Scanned</th>
+                                    <th>QR</th>
+                                </tr>
+                            </thead>
+                            <tbody id="passesTableBody">
+                                <tr th:each="p : ${controlCentre.recentPasses}">
+                                    <td class="mono" style="font-weight: 600;" th:text="${p.passCode}">VYU-XXXX-XXXX</td>
+                                    <td th:text="${p.holderLabel != null ? p.holderLabel : 'Attendee'}">Attendee #1</td>
+                                    <td><span class="badge" th:classappend="${p.statusBadgeClass}" th:text="${p.statusLabel}">Issued</span></td>
+                                    <td>
+                                        <span th:text="${p.lastGateLabel != null ? p.lastGateLabel : '—'}">—</span>
+                                        <div th:if="${p.lastZoneLabel != null}" class="text-muted" style="font-size: 11px;" th:text="${p.lastZoneLabel}">Zone</div>
+                                    </td>
+                                    <td class="mono" style="font-size: 12px;" th:text="${@fmt.utc(p.lastScannedAt)}">—</td>
+                                    <td>
+                                        <button type="button" class="btn btn-ghost btn-sm js-view-qr"
+                                                th:attr="data-pass-code=${p.passCode},data-holder=${p.holderLabel},data-qr-url=${p.qrImageUrl}">
+                                            View QR
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN (35%) -->
+        <div class="stack">
+            <!-- Active Monitoring Alerts Feed Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="section-title">Active Monitoring Alerts</h2>
+                        <div class="text-muted" style="font-size: 12px;">
+                            Threshold overloads, stale zone readings, and duplicate scan rejections.
+                        </div>
+                    </div>
+                    <button type="button" id="checkStalenessBtn" class="btn btn-secondary btn-sm">Check Staleness</button>
+                </div>
+
+                <div class="card-body stack">
+                    <div id="activeAlertsContainer" class="stack">
+                        <div th:if="${#lists.isEmpty(controlCentre.activeAlerts)}" class="banner banner-info">
+                            No active monitoring alerts for this mode right now.
+                        </div>
+
+                        <div th:each="a : ${controlCentre.activeAlerts}" class="alert-feed-item"
+                             th:classappend="${a.severity.name() == 'CRITICAL'} ? 'is-critical' : (${a.severity.name() == 'LOW'} ? 'is-low' : '')">
+                            <div class="badge-row" style="justify-content: space-between;">
+                                <div class="badge-row">
+                                    <span class="badge" th:classappend="${a.severityBadgeClass}" th:text="${a.severity.name()}">HIGH</span>
+                                    <span class="badge" th:classappend="${a.sourceBadgeClass}" th:text="${a.sourceShortLabel}">Source</span>
+                                    <span class="badge badge-neutral" th:text="${a.alertTypeLabel}">Type</span>
+                                </div>
+                                <span class="mono text-muted" style="font-size: 11px;" th:text="${@fmt.utc(a.triggeredAt)}">Time</span>
+                            </div>
+                            <p style="font-size: 13px;" th:text="${a.message}">Alert message</p>
+                            <div class="badge-row" style="justify-content: space-between; font-size: 11px;">
+                                <span class="text-muted"
+                                      th:text="${a.acknowledgedBy != null ? ('Acknowledged by ' + a.acknowledgedBy) : 'Unacknowledged'}">Unacknowledged</span>
+                                <div class="filter-actions">
+                                    <form th:if="${canAcknowledge and a.acknowledgedBy == null}"
+                                          th:action="@{/events/{id}/live/alerts/{aid}/acknowledge(id=${event.id}, aid=${a.id})}"
+                                          method="post" style="margin: 0;">
+                                        <button type="submit" class="btn btn-ghost btn-sm js-ack-alert" th:attr="data-alert-id=${a.id}">Acknowledge</button>
+                                    </form>
+                                    <form th:if="${canEdit}"
+                                          th:action="@{/events/{id}/live/alerts/{aid}/resolve(id=${event.id}, aid=${a.id})}"
+                                          method="post" style="margin: 0;">
+                                        <button type="submit" class="btn btn-secondary btn-sm js-resolve-alert" th:attr="data-alert-id=${a.id}">Resolve</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <details id="resolvedAlertsPanel" class="details-panel"
+                             th:if="${!#lists.isEmpty(controlCentre.resolvedAlerts)}">
+                        <summary th:text="${'Resolved Alerts (' + #lists.size(controlCentre.resolvedAlerts) + ')'}">Resolved Alerts</summary>
+                        <div id="resolvedAlertsList" class="stack" style="margin-top: 8px;">
+                            <div th:each="a : ${controlCentre.resolvedAlerts}" class="review-entry" style="padding: 8px;">
+                                <div class="badge-row" style="justify-content: space-between;">
+                                    <span class="badge" th:classappend="${a.sourceBadgeClass}" th:text="${a.sourceShortLabel}">Source</span>
+                                    <span class="mono text-muted" style="font-size: 11px;" th:text="${'Resolved: ' + @fmt.utc(a.resolvedAt)}">Resolved</span>
+                                </div>
+                                <div style="font-size: 12px;" th:text="${a.message}">Message</div>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+            </div>
+
+            <!-- Alert & Staleness Rules Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Alert &amp; Staleness Rules</h2>
+                    <span class="mono text-muted" th:text="${#lists.size(controlCentre.alertRules) + ' rules'}">1 rule</span>
+                </div>
+                <div class="card-body stack">
+                    <div id="alertRulesList" class="stack">
+                        <div th:each="r : ${controlCentre.alertRules}" class="asset-item">
+                            <div>
+                                <strong class="mono" th:text="${r.zoneCode}">DEFAULT</strong>
+                                <div class="text-secondary" style="font-size: 12px;" th:text="${r.zoneName}">All Zones</div>
+                                <div class="mono text-muted" style="font-size: 11px;"
+                                     th:text="${'Warn: ' + #numbers.formatDecimal(r.warningThresholdPct, 1, 0) + '% · Crit: ' + #numbers.formatDecimal(r.criticalThresholdPct, 1, 0) + '% · Stale: ' + r.staleAfterMinutes + ' min'}">
+                                    Warn: 80% · Crit: 95% · Stale: 15 min
+                                </div>
+                            </div>
+                            <button th:if="${canEdit and !r.defaultRule and r.id != null}"
+                                    type="button" class="btn btn-ghost btn-sm js-delete-rule"
+                                    th:attr="data-rule-id=${r.id}" style="color: var(--sev-critical);">Remove</button>
+                        </div>
+                    </div>
+
+                    <details th:if="${canEdit}" class="details-panel">
+                        <summary>Configure Default or Zone Threshold Rule</summary>
+                        <form id="alertRuleForm" th:action="@{/events/{id}/live/rules(id=${event.id})}"
+                              method="post" class="stack" style="margin-top: 8px;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="ruleZoneSelect">Scope</label>
+                                <select id="ruleZoneSelect" name="zoneId" class="form-control">
+                                    <option value="">Event Default (All Zones)</option>
+                                    <option th:each="z : ${controlCentre.zones}" th:value="${z.zoneId}"
+                                            th:text="${z.zoneCode + ' · ' + z.zoneName}">Zone</option>
+                                </select>
+                            </div>
+                            <div class="form-grid-2">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="ruleWarnInput">Warning %</label>
+                                    <input id="ruleWarnInput" name="warningThresholdPct" type="number" step="1" min="5" max="200"
+                                           value="80" required class="form-control mono">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="ruleCritInput">Critical %</label>
+                                    <input id="ruleCritInput" name="criticalThresholdPct" type="number" step="1" min="10" max="300"
+                                           value="95" required class="form-control mono">
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="ruleStaleInput">Stale After (minutes)</label>
+                                <input id="ruleStaleInput" name="staleAfterMinutes" type="number" min="1" max="1440"
+                                       value="15" required class="form-control mono">
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm">Save Alert Rule</button>
+                        </form>
+                    </details>
+                </div>
+            </div>
+
+            <!-- Operations & Pre-Event Safety Summary Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Gates &amp; Pre-Event Safety Items</h2>
+                </div>
+                <div class="card-body stack">
+                    <div class="meta-grid">
+                        <div class="meta-item">
+                            <dt>Capacity Review Status</dt>
+                            <dd>
+                                <span class="badge"
+                                      th:classappend="${controlCentre.preEventSafety.capacityReviewBadgeClass}"
+                                      th:text="${controlCentre.preEventSafety.capacityReviewStatusLabel}">Pending Review</span>
+                            </dd>
+                        </div>
+                        <div class="meta-item">
+                            <dt>Checklist Remaining</dt>
+                            <dd class="mono"
+                                th:text="${controlCentre.preEventSafety.incompleteChecklistCount + ' / ' + controlCentre.preEventSafety.totalChecklistCount + ' open'}">0 / 0 open</dd>
+                        </div>
+                        <div class="meta-item">
+                            <dt>Spatial Conflicts</dt>
+                            <dd class="mono" th:text="${controlCentre.preEventSafety.activeConflictCount + ' active'}">0 active</dd>
+                        </div>
+                        <div class="meta-item">
+                            <dt>Pathway Bottlenecks</dt>
+                            <dd class="mono" th:text="${controlCentre.preEventSafety.activeBottleneckCount + ' active'}">0 active</dd>
+                        </div>
+                    </div>
+
+                    <div id="gateStatusList" class="stack" th:if="${!#lists.isEmpty(controlCentre.gates)}">
+                        <div class="form-label" style="margin-bottom: 0;">Active Gates &amp; Checkpoints</div>
+                        <div th:each="g : ${controlCentre.gates}" class="asset-item">
+                            <div>
+                                <strong th:text="${g.label}">Gate</strong>
+                                <div class="text-muted" style="font-size: 11px;" th:text="${g.typeName}">Entry Gate</div>
+                            </div>
+                            <div class="mono" style="text-align: right; font-size: 11px;">
+                                <span th:text="${g.checkedInCount + ' in · ' + g.checkedOutCount + ' out'}">0 in · 0 out</span>
+                                <div class="text-muted" th:text="${@fmt.utc(g.lastScannedAt)}">—</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="filter-actions">
+                        <a th:href="@{/events/{id}(id=${event.id})}" class="btn btn-ghost btn-sm">Checklist &amp; Reviews</a>
+                        <a th:href="@{/events/{id}/capacity(id=${event.id}, tab='staff')}" class="btn btn-ghost btn-sm">Staff &amp; Incidents</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Native QR Code Preview Dialog -->
+    <dialog id="passQrDialog" class="modal">
+        <div class="card-header">
+            <h2 class="section-title">Attendee Pass QR Code</h2>
+            <button type="button" id="closeQrDialogBtn" class="btn btn-ghost btn-sm">Close</button>
+        </div>
+        <div class="card-body qr-modal-box">
+            <img id="qrDialogImage" class="qr-modal-img" alt="Attendee Pass QR Code" src="">
+            <div class="mono" style="font-size: 16px; font-weight: 700;" id="qrDialogCode">VYU-XXXX-XXXX</div>
+            <div class="text-secondary" style="font-size: 13px;" id="qrDialogHolder">Attendee</div>
+            <a id="qrDialogDownloadLink" class="btn btn-secondary btn-sm" download="pass-qr.png" href="#">Download QR PNG</a>
+        </div>
+    </dialog>
+
+    <script type="module" th:src="@{/js/live-monitor.js}"></script>
+</section>
+</body>
+</html>

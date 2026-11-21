@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(${isEdit} ? 'Edit Event' : 'New Event')}"></head>
+<body th:replace="~{fragments/layout :: page(${isEdit} ? 'Edit Event' : 'New Event', 'events', ${eventId}, ${isEdit} ? 'overview' : null, ~{::section})}">
+<section class="stack">
+    <div class="page-header">
+        <div>
+            <h1 th:text="${isEdit} ? 'Edit Event Plan' : 'Create New Event'">Create New Event</h1>
+            <p class="page-header-subtitle">
+                Save incomplete details as a Draft at any time, or complete all planning fields for formal review.
+            </p>
+        </div>
+        <a th:href="${isEdit} ? @{/events/{id}(id=${eventId})} : @{/events}" class="btn btn-secondary">Cancel</a>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2 class="section-title">Event Metadata &amp; Reviewer Assignment</h2>
+            <span class="badge badge-info">Human-Led Planning</span>
+        </div>
+        <div class="card-body">
+            <form th:action="${isEdit} ? @{/events/{id}(id=${eventId})} : @{/events}"
+                  th:object="${eventForm}"
+                  method="post">
+
+                <div th:if="${#fields.hasErrors('*')}" class="banner banner-danger" style="margin-bottom: 16px;" role="alert">
+                    Please correct the highlighted fields below before saving.
+                </div>
+
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label for="name" class="form-label">Event Name *</label>
+                        <input id="name" type="text" th:field="*{name}" class="form-control" required
+                               placeholder="e.g., TechnoVyuha Annual Campus Festival">
+                        <span class="form-error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">Name error</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="category" class="form-label">Event Category *</label>
+                        <select id="category" th:field="*{category}" class="form-control" required>
+                            <option th:each="cat : ${categories}"
+                                    th:value="${cat.name()}"
+                                    th:text="${cat.displayName}">Category</option>
+                        </select>
+                        <span class="form-error" th:if="${#fields.hasErrors('category')}" th:errors="*{category}">Category error</span>
+                    </div>
+                </div>
+
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label for="status" class="form-label">Lifecycle Status *</label>
+                        <select id="status" th:field="*{status}" class="form-control" required>
+                            <option th:each="st : ${statuses}"
+                                    th:value="${st.name()}"
+                                    th:text="${st.displayName}">Status</option>
+                        </select>
+                        <span class="form-error" th:if="${#fields.hasErrors('status')}" th:errors="*{status}">Status error</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="assignedReviewerId" class="form-label">Assigned Safety Reviewer</label>
+                        <select id="assignedReviewerId" th:field="*{assignedReviewerId}" class="form-control">
+                            <option value="">Unassigned</option>
+                            <option th:each="rev : ${reviewers}"
+                                    th:value="${rev.id}"
+                                    th:text="${rev.fullName + ' (' + rev.email + ')'}">Reviewer</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label for="startDateTime" class="form-label">Start Date &amp; Time (Required unless Draft)</label>
+                        <input id="startDateTime" type="datetime-local" th:field="*{startDateTime}" class="form-control mono">
+                        <span class="form-error" th:if="${#fields.hasErrors('startDateTime')}" th:errors="*{startDateTime}">Start error</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="endDateTime" class="form-label">End Date &amp; Time (Required unless Draft)</label>
+                        <input id="endDateTime" type="datetime-local" th:field="*{endDateTime}" class="form-control mono">
+                        <span class="form-error" th:if="${#fields.hasErrors('endDateTime')}" th:errors="*{endDateTime}">End error</span>
+                    </div>
+                </div>
+
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label for="expectedAttendance" class="form-label">Expected Attendance (Required unless Draft)</label>
+                        <input id="expectedAttendance" type="number" min="1" max="5000000"
+                               th:field="*{expectedAttendance}" class="form-control mono"
+                               placeholder="e.g., 3500">
+                        <span class="form-error" th:if="${#fields.hasErrors('expectedAttendance')}" th:errors="*{expectedAttendance}">Attendance error</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="locationName" class="form-label">Venue / Location Name (Required unless Draft)</label>
+                        <input id="locationName" type="text" th:field="*{locationName}" class="form-control"
+                               placeholder="e.g., Central Quadrangle & Main Ground">
+                        <span class="form-error" th:if="${#fields.hasErrors('locationName')}" th:errors="*{locationName}">Location error</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="locationAddress" class="form-label">Location Address / Campus Sector</label>
+                    <input id="locationAddress" type="text" th:field="*{locationAddress}" class="form-control"
+                           placeholder="Street address, campus block, or landmark reference">
+                    <span class="form-error" th:if="${#fields.hasErrors('locationAddress')}" th:errors="*{locationAddress}">Address error</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="scheduleTimeline" class="form-label">Schedule &amp; Peak Flow Timeline</label>
+                    <textarea id="scheduleTimeline" th:field="*{scheduleTimeline}" rows="3" class="form-control"
+                              placeholder="e.g., 16:00 Gates Open; 18:30 Headliner Rush; 21:30 Dispersal"></textarea>
+                    <span class="form-error" th:if="${#fields.hasErrors('scheduleTimeline')}" th:errors="*{scheduleTimeline}">Timeline error</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="description" class="form-label">Event Description &amp; Context</label>
+                    <textarea id="description" th:field="*{description}" rows="3" class="form-control"
+                              placeholder="Key operational notes, crowd profile, and site constraints"></textarea>
+                    <span class="form-error" th:if="${#fields.hasErrors('description')}" th:errors="*{description}">Description error</span>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary"
+                            th:text="${isEdit} ? 'Save Changes' : 'Create Event'">Create Event</button>
+                    <button type="submit" name="saveAsDraft" value="true" class="btn btn-secondary">
+                        Save as Draft
+                    </button>
+                    <a th:href="${isEdit} ? @{/events/{id}(id=${eventId})} : @{/events}" class="btn btn-ghost">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+</body>
+</html>

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In — Vyuha</title>
+    <link rel="stylesheet" th:href="@{/css/vyuha-tokens.css}">
+    <link rel="stylesheet" th:href="@{/css/vyuha-base.css}">
+    <link rel="stylesheet" th:href="@{/css/vyuha-print.css}">
+</head>
+<body>
+    <div th:replace="~{fragments/safety-banner :: safetyBanner}"></div>
+
+    <main class="auth-shell">
+        <section class="auth-card" aria-labelledby="login-heading">
+            <div class="auth-header">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="3" y="3" width="7" height="7" rx="1"/>
+                    <rect x="14" y="3" width="7" height="7" rx="1"/>
+                    <rect x="3" y="14" width="7" height="7" rx="1"/>
+                    <path d="M14 17.5h7M17.5 14v7"/>
+                </svg>
+                <h1 id="login-heading" class="auth-brand">VYUHA</h1>
+            </div>
+            <p class="auth-subtitle">Crowd Safety, Venue Planning &amp; Operations Decision-Support Workspace</p>
+
+            <div th:if="${param.error}" class="banner banner-danger" style="margin-bottom: 12px;" role="alert">
+                Invalid email or password. Please verify your credentials and try again.
+            </div>
+
+            <div th:if="${param.logout}" class="banner banner-info" style="margin-bottom: 12px;" role="status">
+                You have been signed out cleanly.
+            </div>
+
+            <form th:action="@{/login}" method="post">
+                <div class="form-group">
+                    <label for="email" class="form-label">Email Address</label>
+                    <input id="email" name="email" type="email" class="form-control"
+                           autocomplete="username" required autofocus
+                           placeholder="organizer@vyuha.local">
+                </div>
+
+                <div class="form-group">
+                    <label for="password" class="form-label">Password</label>
+                    <input id="password" name="password" type="password" class="form-control"
+                           autocomplete="current-password" required>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 4px;">
+                    Sign In
+                </button>
+            </form>
+
+            <details class="details-panel" style="margin-top: 16px;">
+                <summary>Demo Accounts (Local Seeded Roles)</summary>
+                <table class="demo-accounts-table">
+                    <thead>
+                        <tr>
+                            <th>Role</th>
+                            <th>Email</th>
+                            <th>Password</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="badge badge-neutral">Admin</span></td>
+                            <td class="mono">admin@vyuha.local</td>
+                            <td class="mono">VyuhaAdmin123!</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-info">Organizer</span></td>
+                            <td class="mono">organizer@vyuha.local</td>
+                            <td class="mono">VyuhaOrg123!</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-verified">Safety Reviewer</span></td>
+                            <td class="mono">reviewer@vyuha.local</td>
+                            <td class="mono">VyuhaRev123!</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-low">Field Staff</span></td>
+                            <td class="mono">staff@vyuha.local</td>
+                            <td class="mono">VyuhaStaff123!</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </details>
+        </section>
+    </main>
+</body>
+</html>

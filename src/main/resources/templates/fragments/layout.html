@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:fragment="head(pageTitle)">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" th:if="${_csrf != null}" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:if="${_csrf != null}" th:content="${_csrf.headerName}">
+    <title th:text="${pageTitle != null ? pageTitle + ' — Vyuha' : 'Vyuha'}">Vyuha</title>
+    <link rel="stylesheet" th:href="@{/css/vyuha-tokens.css}">
+    <link rel="stylesheet" th:href="@{/css/vyuha-base.css}">
+    <link rel="stylesheet" th:href="@{/css/vyuha-print.css}">
+</head>
+
+<body th:fragment="page(pageTitle, activeNav, eventId, activeTab, content)">
+    <div th:replace="~{fragments/navbar :: navbar(${activeNav})}"></div>
+    <div th:replace="~{fragments/safety-banner :: safetyBanner}"></div>
+    <div th:replace="~{fragments/event-tabs :: eventTabs(${eventId}, ${activeTab})}"></div>
+    <main class="page-container">
+        <div th:replace="${content}"></div>
+    </main>
+
+    <th:block th:if="${eventId != null}"
+              th:insert="~{fragments/assistant-drawer :: assistantDrawer(${eventId})}"></th:block>
+</body>
+</html>

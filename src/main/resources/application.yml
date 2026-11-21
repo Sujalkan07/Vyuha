@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: vyuha
+  datasource:
+    url: jdbc:h2:file:./data/vyuha-db;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  thymeleaf:
+    cache: false
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
+
+server:
+  port: 8080
+  error:
+    whitelabel:
+      enabled: false
+
+vyuha:
+  storage:
+    upload-dir: ./data/uploads
+  seed:
+    campus-festival-enabled: true
+  assistant:
+    provider: ${VYUHA_ASSISTANT_PROVIDER:local}
+    endpoint-url: ${VYUHA_ASSISTANT_ENDPOINT:}
+    api-key: ${VYUHA_ASSISTANT_API_KEY:}
+    model: ${VYUHA_ASSISTANT_MODEL:}
+    timeout-ms: ${VYUHA_ASSISTANT_TIMEOUT_MS:8000}
+
+logging:
+  level:
+    com.vyuha: INFO

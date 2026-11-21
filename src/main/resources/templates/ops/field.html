@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/field-layout :: head('Field Operations')}"></head>
+<body th:replace="~{fragments/field-layout :: fieldPage('Field Operations', ~{::section})}">
+<section class="stack" id="fieldOpsRoot"
+         th:attr="data-event-id=${fieldView.selectedEventId}">
+    <div class="page-header">
+        <div>
+            <h1>Field Operations View</h1>
+            <p class="page-header-subtitle">
+                Operator: <strong th:text="${fieldView.currentUserName}">Field Staff</strong>
+                (<span th:text="${fieldView.currentUserRole}">Field Staff</span>)
+            </p>
+        </div>
+    </div>
+
+    <div th:if="${successMessage}" class="banner banner-info" role="status" th:text="${successMessage}">Success</div>
+    <div th:if="${errorMessage}" class="banner banner-danger" role="alert" th:text="${errorMessage}">Error</div>
+    <div id="fieldActionFeedback" class="banner banner-info" style="display: none;" role="status"></div>
+
+    <div class="banner banner-info">
+        Mobile-friendly operations workspace for gate &amp; zone staff. Manual zone headcounts tag as <span class="mono">MANUAL_STAFF</span>; attendee pass scans tag as <span class="mono">PASS_SCAN</span> and never blend together.
+    </div>
+
+    <div th:if="${fieldView.selectedEventId == null}" class="card">
+        <div class="card-body empty-state">
+            <p>No active events available yet. Ask an Organizer to create an event and assign shifts.</p>
+            <a th:href="@{/guidelines}" class="btn btn-secondary field-tap-target">Open Safety Guidelines Reference</a>
+        </div>
+    </div>
+
+    <div th:if="${fieldView.selectedEventId != null}" class="stack">
+        <!-- Event Selector -->
+        <div class="card">
+            <div class="card-body">
+                <form th:action="@{/field}" method="get" class="stack">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="fieldEventId">Active Event</label>
+                        <select id="fieldEventId" name="eventId" class="form-control field-tap-target" onchange="this.form.submit()">
+                            <option th:each="ev : ${fieldView.availableEvents}"
+                                    th:value="${ev.id}" th:text="${ev.label}"
+                                    th:selected="${ev.id == fieldView.selectedEventId}">Event</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Phase 10: Manual Zone Count Submission (MANUAL_STAFF) -->
+        <div class="card" th:if="${fieldMonitoring != null}">
+            <div class="card-header">
+                <div>
+                    <h2 class="section-title">Manual Zone Count</h2>
+                    <div class="text-muted" style="font-size: 12px;">Tagged strictly as <span class="mono">MANUAL_STAFF</span></div>
+                </div>
+                <span class="badge badge-info">Manual Count</span>
+            </div>
+            <div class="card-body stack">
+                <div th:if="${#lists.isEmpty(fieldMonitoring.manualZones)}" class="text-muted" style="font-size: 13px;">
+                    No functional zones defined for this event yet.
+                </div>
+
+                <form th:if="${!#lists.isEmpty(fieldMonitoring.manualZones)}"
+                      id="fieldManualCountForm"
+                      th:action="@{/field/events/{id}/readings(id=${fieldView.selectedEventId})}"
+                      method="post" class="stack">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="fieldCountZoneSelect">Zone</label>
+                        <select id="fieldCountZoneSelect" name="zoneId" class="form-control field-tap-target" required>
+                            <option th:each="z : ${fieldMonitoring.manualZones}"
+                                    th:value="${z.zoneId}"
+                                    th:text="${z.zoneCode + ' · ' + z.zoneName + (z.currentCount != null ? ' (Last: ' + z.currentCount + ')' : '')}">
+                                AUD-1
+                            </option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="fieldCountValueInput">Headcount</label>
+                        <div class="field-stepper">
+                            <button type="button" class="btn btn-secondary field-stepper-btn js-step-count" data-delta="-10">-10</button>
+                            <button type="button" class="btn btn-secondary field-stepper-btn js-step-count" data-delta="-1">-1</button>
+                            <input id="fieldCountValueInput" name="countValue" type="number" min="0" max="1000000" value="0"
+                                   required class="form-control field-tap-target mono" style="text-align: center; font-size: 16px; font-weight: 700;">
+                            <button type="button" class="btn btn-secondary field-stepper-btn js-step-count" data-delta="1">+1</button>
+                            <button type="button" class="btn btn-secondary field-stepper-btn js-step-count" data-delta="10">+10</button>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="fieldCountNoteInput">Note (Optional)</label>
+                        <input id="fieldCountNoteInput" name="note" type="text" maxlength="500"
+                               class="form-control field-tap-target" placeholder="Barrier check / section walkthrough">
+                    </div>
+                    <button type="submit" class="btn btn-primary field-tap-target">Submit Zone Count</button>
+                </form>
+
+                <div id="fieldZoneCountsList" class="stack" th:if="${!#lists.isEmpty(fieldMonitoring.manualZones)}">
+                    <div class="form-label" style="margin-bottom: 0;">Latest Zone Manual Counts</div>
+                    <div th:each="z : ${fieldMonitoring.manualZones}" class="asset-item">
+                        <div>
+                            <strong class="mono" th:text="${z.zoneCode}">AUD-1</strong>
+                            <span class="text-secondary" style="font-size: 12px;" th:text="${' · ' + z.zoneName}">Zone</span>
+                            <div class="mono text-muted" style="font-size: 11px;" th:text="${@fmt.utc(z.lastUpdatedAt)}">—</div>
+                        </div>
+                        <div class="badge-row">
+                            <span class="mono" style="font-weight: 700;" th:text="${z.currentCount != null ? z.currentCount : '—'}">—</span>
+                            <span class="badge" th:classappend="${z.bandBadgeClass}" th:text="${z.bandLabel}">No Reading</span>
+                            <span th:if="${z.stale}" class="badge badge-low">STALE</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Phase 10: Attendee Pass Check-In / Check-Out Scanner (PASS_SCAN) -->
+        <div class="card" th:if="${fieldMonitoring != null}">
+            <div class="card-header">
+                <div>
+                    <h2 class="section-title">Attendee Pass Scanner</h2>
+                    <div class="text-muted" style="font-size: 12px;">Tagged strictly as <span class="mono">PASS_SCAN</span></div>
+                </div>
+                <div class="badge-row">
+                    <span class="badge badge-verified mono" id="fieldPassInBadge"
+                          th:text="${fieldMonitoring.passSummary.checkedInCount + ' IN'}">0 IN</span>
+                    <span class="badge badge-info mono" id="fieldPassOutBadge"
+                          th:text="${fieldMonitoring.passSummary.checkedOutCount + ' OUT'}">0 OUT</span>
+                </div>
+            </div>
+            <div class="card-body stack">
+                <form id="fieldPassScanForm"
+                      th:action="@{/field/events/{id}/passes/scan(id=${fieldView.selectedEventId})}"
+                      method="post" class="stack">
+                    <div class="form-grid-2">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="fieldScanActionSelect">Scan Action</label>
+                            <select id="fieldScanActionSelect" name="action" class="form-control field-tap-target" required>
+                                <option th:each="act : ${scanActions}" th:value="${act.name()}" th:text="${act.displayName}">Entry Check-In</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="fieldScanGateSelect">Gate</label>
+                            <select id="fieldScanGateSelect" name="gateId" class="form-control field-tap-target">
+                                <option value="">Any Gate</option>
+                                <option th:each="g : ${fieldMonitoring.gates}" th:value="${g.id}" th:text="${g.label}">Gate</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="fieldScanZoneSelect">Target Zone (Optional)</label>
+                        <select id="fieldScanZoneSelect" name="zoneId" class="form-control field-tap-target">
+                            <option value="">Auto from Gate</option>
+                            <option th:each="z : ${fieldView.zoneOptions}" th:value="${z.id}" th:text="${z.label}">Zone</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="fieldPassCodeInput">Pass Code (Manual Entry or Camera Scan)</label>
+                        <input id="fieldPassCodeInput" name="passCode" type="text" maxlength="32" required
+                               class="form-control field-tap-target mono"
+                               style="font-size: 16px; letter-spacing: 0.04em; text-transform: uppercase;"
+                               placeholder="VYU-XXXX-XXXX">
+                    </div>
+                    <button type="submit" class="btn btn-primary field-tap-target">Scan Attendee Pass</button>
+                </form>
+
+                <div class="form-actions" style="margin-top: 0;">
+                    <label class="btn btn-secondary field-tap-target" style="flex: 1; cursor: pointer;">
+                        Upload / Capture QR Photo
+                        <input id="fieldQrPhotoInput" type="file" accept="image/png,image/jpeg,image/webp" capture="environment" style="display: none;">
+                    </label>
+                    <button type="button" id="fieldCameraScanBtn" class="btn btn-secondary field-tap-target" style="display: none;">
+                        Live Camera QR
+                    </button>
+                </div>
+                <video id="fieldQrVideo" playsinline muted style="display: none; width: 100%; border-radius: 6px; border: 1px solid var(--border);"></video>
+            </div>
+        </div>
+
+        <!-- My Assigned Shifts -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="section-title">My Assigned Shifts</h2>
+                <span class="mono text-muted" th:text="${#lists.size(fieldView.myShifts) + ' shifts'}">0 shifts</span>
+            </div>
+            <div class="card-body stack">
+                <div th:if="${#lists.isEmpty(fieldView.myShifts)}" class="text-muted" style="font-size: 13px;">
+                    No shifts specifically linked to your account for <strong th:text="${fieldView.selectedEventName}">this event</strong>.
+                </div>
+                <div th:each="sh : ${fieldView.myShifts}" class="field-shift-card">
+                    <div class="badge-row" style="justify-content: space-between;">
+                        <strong th:text="${sh.locationSummary}">Gate / Zone</strong>
+                        <span class="badge" th:classappend="${sh.roleBadgeClass}" th:text="${sh.roleDisplayName}">Security</span>
+                    </div>
+                    <div class="mono text-secondary" style="font-size: 12px;" th:text="${sh.shiftWindowLabel}">Shift window</div>
+                    <div th:if="${sh.notes != null}" class="text-muted" style="font-size: 12px;" th:text="${sh.notes}">Notes</div>
+                </div>
+
+                <div th:if="${!#lists.isEmpty(fieldView.eventShifts)}" class="stack" style="margin-top: 8px;">
+                    <div class="form-label">All Event Shifts</div>
+                    <div th:each="sh : ${fieldView.eventShifts}" class="field-shift-card">
+                        <div class="badge-row" style="justify-content: space-between;">
+                            <strong th:text="${sh.staffName + ' · ' + sh.locationSummary}">Staff</strong>
+                            <span class="badge" th:classappend="${sh.roleBadgeClass}" th:text="${sh.roleDisplayName}">Security</span>
+                        </div>
+                        <div class="mono text-secondary" style="font-size: 12px;" th:text="${sh.shiftWindowLabel}">Shift window</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Report Field Incident -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="section-title">Report Field Incident</h2>
+            </div>
+            <div class="card-body">
+                <form th:action="@{/field/events/{id}/incidents(id=${fieldView.selectedEventId})}" method="post" class="stack">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="fieldSev">Severity</label>
+                        <select id="fieldSev" name="severity" class="form-control field-tap-target" required>
+                            <option th:each="sev : ${severities}" th:value="${sev.name()}" th:text="${sev.name()}">HIGH</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="fieldZone">Zone</label>
+                        <select id="fieldZone" name="zoneId" class="form-control field-tap-target">
+                            <option value="">General Venue</option>
+                            <option th:each="z : ${fieldView.zoneOptions}" th:value="${z.id}" th:text="${z.label}">Zone</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="fieldDesc">Incident Description</label>
+                        <textarea id="fieldDesc" name="description" rows="2" maxlength="1500" required
+                                  class="form-control" placeholder="Describe queue buildup, medical need, or obstruction..."></textarea>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="fieldResp">Immediate Action Taken (Optional)</label>
+                        <input id="fieldResp" name="responseTaken" type="text" maxlength="1500"
+                               class="form-control field-tap-target" placeholder="Holding line redirected / assistance requested">
+                    </div>
+                    <button type="submit" class="btn btn-primary field-tap-target">Submit Incident Report</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Field Incident Log -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="section-title">Event Incident Log</h2>
+                <span class="mono text-muted" th:text="${#lists.size(fieldView.incidents) + ' entries'}">0 entries</span>
+            </div>
+            <div class="card-body stack">
+                <div th:if="${#lists.isEmpty(fieldView.incidents)}" class="text-muted" style="font-size: 13px;">
+                    No incidents logged for this event yet.
+                </div>
+                <div th:each="inc : ${fieldView.incidents}" class="review-entry">
+                    <div class="review-entry-header">
+                        <div class="badge-row">
+                            <span class="badge" th:classappend="${inc.severityBadgeClass}" th:text="${inc.severity.name()}">HIGH</span>
+                            <span class="badge" th:classappend="${inc.statusBadgeClass}" th:text="${inc.statusDisplayName}">Open</span>
+                        </div>
+                        <span class="mono text-muted" style="font-size: 11px;" th:text="${@fmt.utc(inc.reportedAt)}">Time</span>
+                    </div>
+                    <div class="text-secondary" style="font-size: 12px;"
+                         th:text="${inc.zoneCode != null ? (inc.zoneCode + ' · ' + inc.zoneName) : 'General Venue'}">Zone</div>
+                    <p th:text="${inc.description}">Description</p>
+                    <div th:if="${inc.responseTaken != null}" class="review-response-box" th:text="${inc.responseTaken}">Response</div>
+
+                    <details class="details-panel">
+                        <summary>Update Status / Response</summary>
+                        <form th:action="@{/field/events/{eid}/incidents/{iid}(eid=${fieldView.selectedEventId}, iid=${inc.id})}"
+                              method="post" class="stack" style="margin-top: 8px;">
+                            <select name="status" class="form-control field-tap-target">
+                                <option th:each="st : ${incidentStatuses}" th:value="${st.name()}"
+                                        th:text="${st.displayName}" th:selected="${inc.status == st}">Status</option>
+                            </select>
+                            <input name="responseTaken" type="text" maxlength="1500"
+                                   class="form-control field-tap-target" th:value="${inc.responseTaken}"
+                                   placeholder="Action taken or resolution note">
+                            <button type="submit" class="btn btn-secondary field-tap-target">Save Update</button>
+                        </form>
+                    </details>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body stack">
+            <a th:href="@{/guidelines}" class="btn btn-secondary field-tap-target">
+                Open Safety Guidelines Reference
+            </a>
+        </div>
+    </div>
+
+    <script type="module" th:src="@{/js/field-ops.js}"></script>
+</section>
+</body>
+</html>

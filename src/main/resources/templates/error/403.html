@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Access Denied')}"></head>
+<body th:replace="~{fragments/layout :: page('Access Denied', '', null, null, ~{::section})}">
+<section class="stack">
+    <div class="card">
+        <div class="card-header">
+            <h1 class="page-title">403 — Access Denied</h1>
+            <span class="badge badge-critical">Restricted</span>
+        </div>
+        <div class="card-body stack">
+            <p class="text-secondary" th:text="${errorMessage != null ? errorMessage : 'Your current role does not have permission to access this resource.'}">
+                Your current role does not have permission to access this resource.
+            </p>
+            <div>
+                <a th:href="@{/}" class="btn btn-primary">Return to Allowed Workspace</a>
+            </div>
+        </div>
+    </div>
+</section>
+</body>
+</html>

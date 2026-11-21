@@ -1,0 +1,71 @@
+{
+  "type": "FeatureCollection",
+  "name": "civic-plaza",
+  "properties": {
+    "key": "civic-plaza",
+    "title": "Civic Public Plaza",
+    "widthMeters": 100.0,
+    "heightMeters": 80.0
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "role": "outer_boundary",
+        "label": "Civic Plaza Outer Perimeter",
+        "kind": "BOUNDARY"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[10, 8], [90, 8], [90, 72], [10, 72], [10, 8]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "role": "context_building",
+        "label": "Town Hall Pavilion",
+        "kind": "BUILDING"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[35, 10], [65, 10], [65, 22], [35, 22], [35, 10]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "role": "context_fountain",
+        "label": "Central Memorial Fountain",
+        "kind": "RESTRICTED"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[44, 34], [56, 34], [56, 46], [44, 46], [44, 34]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "role": "context_corridor",
+        "label": "West Promenade Boulevard",
+        "kind": "ROAD"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[12, 12], [20, 12], [20, 68], [12, 68], [12, 12]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "role": "landmark",
+        "label": "South Metro Approach"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [50, 72]
+      }
+    }
+  ]
+}

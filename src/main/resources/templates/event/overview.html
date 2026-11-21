@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(${event.name} + ' — Overview')}"></head>
+<body th:replace="~{fragments/layout :: page(${event.name} + ' — Overview', 'events', ${event.id}, 'overview', ~{::section})}">
+<section class="stack">
+    <div class="page-header">
+        <div>
+            <div class="badge-row" style="margin-bottom: 6px;">
+                <span class="badge" th:classappend="${event.status.badgeClass}" th:text="${event.status.displayName}">Planning</span>
+                <span class="badge badge-neutral" th:text="${event.category.displayName}">College Festival</span>
+                <span th:if="${latestReviewStatus != null}"
+                      class="badge"
+                      th:classappend="${latestReviewStatus.badgeClass}"
+                      th:text="${latestReviewStatus.displayName}">Review Documented</span>
+                <span th:if="${latestReviewStatus == null}" class="badge badge-low">Review Pending</span>
+            </div>
+            <h1 th:text="${event.name}">Event Name</h1>
+            <p class="page-header-subtitle">
+                <span th:text="${event.locationName != null ? event.locationName : 'Location TBD'}">Location</span>
+                <span th:if="${event.locationAddress != null}" th:text="' · ' + ${event.locationAddress}"></span>
+            </p>
+        </div>
+
+        <div class="filter-actions" sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')">
+            <a th:href="@{/events/{id}/edit(id=${event.id})}" class="btn btn-secondary">Edit Event</a>
+            <button type="button" class="btn btn-ghost"
+                    onclick="document.getElementById('deleteEventDialog').showModal()">Delete</button>
+        </div>
+    </div>
+
+    <div th:if="${successMessage}" class="banner banner-info" role="status" th:text="${successMessage}">Success</div>
+    <div th:if="${errorMessage}" class="banner banner-danger" role="alert" th:text="${errorMessage}">Error</div>
+
+    <div class="grid-2col">
+        <!-- Left Column (65%): Event Metadata + Safety Review Log + Supporting Documents -->
+        <div class="stack">
+            <!-- Event Metadata Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Event Metadata &amp; Schedule</h2>
+                    <span class="mono text-muted" th:text="'ID #' + ${event.id}">ID #1</span>
+                </div>
+                <div class="card-body stack">
+                    <dl class="meta-grid">
+                        <div class="meta-item">
+                            <dt>Start Date &amp; Time</dt>
+                            <dd class="mono"
+                                th:text="${event.startDateTime != null ? #temporals.format(event.startDateTime, 'yyyy-MM-dd HH:mm') : 'Not set (Draft)'}">
+                                2026-11-20 16:00
+                            </dd>
+                        </div>
+                        <div class="meta-item">
+                            <dt>End Date &amp; Time</dt>
+                            <dd class="mono"
+                                th:text="${event.endDateTime != null ? #temporals.format(event.endDateTime, 'yyyy-MM-dd HH:mm') : 'Not set (Draft)'}">
+                                2026-11-20 22:00
+                            </dd>
+                        </div>
+                        <div class="meta-item">
+                            <dt>Expected Attendance</dt>
+                            <dd class="mono"
+                                th:text="${event.expectedAttendance != null ? #numbers.formatInteger(event.expectedAttendance, 1, 'COMMA') + ' persons' : 'Not set (Draft)'}">
+                                3,500 persons
+                            </dd>
+                        </div>
+                        <div class="meta-item">
+                            <dt>Lead Organizer</dt>
+                            <dd th:text="${event.organizer.fullName + ' (' + event.organizer.email + ')'}">Organizer</dd>
+                        </div>
+                        <div class="meta-item">
+                            <dt>Assigned Safety Reviewer</dt>
+                            <dd th:text="${event.assignedReviewer != null ? event.assignedReviewer.fullName + ' (' + event.assignedReviewer.email + ')' : 'Unassigned'}">
+                                Safety Reviewer
+                            </dd>
+                        </div>
+                        <div class="meta-item">
+                            <dt>Last Updated</dt>
+                            <dd class="mono" th:text="${@fmt.utc(event.audit.updatedAt)}">2026-11-20 13:00 UTC</dd>
+                        </div>
+                    </dl>
+
+                    <div th:if="${event.scheduleTimeline != null}">
+                        <div class="form-label" style="margin-bottom: 4px;">Schedule Timeline</div>
+                        <p class="text-secondary" style="white-space: pre-line;" th:text="${event.scheduleTimeline}">Timeline</p>
+                    </div>
+
+                    <div th:if="${event.description != null}">
+                        <div class="form-label" style="margin-bottom: 4px;">Description</div>
+                        <p class="text-secondary" style="white-space: pre-line;" th:text="${event.description}">Description</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Safety Review Log Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Formal Safety Review Log</h2>
+                    <span th:if="${latestReviewStatus != null}"
+                          class="badge"
+                          th:classappend="${latestReviewStatus.badgeClass}"
+                          th:text="${latestReviewStatus.displayName}">Review Documented</span>
+                    <span th:if="${latestReviewStatus == null}" class="badge badge-low">Pending Review</span>
+                </div>
+                <div class="card-body stack">
+                    <div class="banner banner-warn">
+                        <strong>Human-Led Safety Verdict:</strong> Review log entries are append-only records authored by designated safety reviewers. Vyuha never generates automated safety approvals or certifications.
+                    </div>
+
+                    <!-- Reviewer / Admin Form to Issue Formal Review Entry -->
+                    <form sec:authorize="hasAnyRole('ADMIN', 'SAFETY_REVIEWER')"
+                          th:action="@{/events/{id}/reviews(id=${event.id})}"
+                          method="post"
+                          class="details-panel stack">
+                        <div class="form-grid-2">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label for="reviewStatus" class="form-label">Review Determination</label>
+                                <select id="reviewStatus" name="reviewStatus" class="form-control" required>
+                                    <option th:each="rs : ${reviewStatuses}"
+                                            th:value="${rs.name()}"
+                                            th:text="${rs.displayName}">Status</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="findingsSummary" class="form-label">Findings &amp; Conditions Summary</label>
+                            <textarea id="findingsSummary" name="findingsSummary" rows="3" class="form-control" required
+                                      placeholder="Document spatial observations, egress conditions, and required planner revisions..."></textarea>
+                        </div>
+                        <div>
+                            <button type="submit" class="btn btn-primary btn-sm">Record Formal Review Entry</button>
+                        </div>
+                    </form>
+
+                    <div th:if="${#lists.isEmpty(reviews)}" class="empty-state" style="padding: 20px;">
+                        <p>No formal safety review entries recorded yet.</p>
+                    </div>
+
+                    <div th:each="rec : ${reviews}" class="review-entry">
+                        <div class="review-entry-header">
+                            <div class="badge-row">
+                                <span class="badge" th:classappend="${rec.reviewStatus.badgeClass}"
+                                      th:text="${rec.reviewStatus.displayName}">Comments Issued</span>
+                                <strong th:text="${rec.reviewer.fullName}">Reviewer</strong>
+                            </div>
+                            <span class="mono text-muted" style="font-size: 12px;"
+                                  th:text="${@fmt.utc(rec.reviewedAt)}">
+                                2026-11-20 13:00 UTC
+                            </span>
+                        </div>
+                        <p style="white-space: pre-line;" th:text="${rec.findingsSummary}">Summary</p>
+
+                        <div th:if="${rec.organizerResponse != null}" class="review-response-box">
+                            <div class="text-muted" style="font-size: 12px; margin-bottom: 4px;">
+                                Organizer Response
+                                <span th:if="${rec.respondedBy != null}" th:text="' by ' + ${rec.respondedBy.fullName}"></span>
+                                <span th:if="${rec.respondedAt != null}" class="mono"
+                                      th:text="' (' + ${@fmt.utc(rec.respondedAt)} + ')'"></span>
+                            </div>
+                            <p style="white-space: pre-line;" th:text="${rec.organizerResponse}">Response</p>
+                        </div>
+
+                        <details sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')" class="details-panel">
+                            <summary th:text="${rec.organizerResponse != null} ? 'Update Organizer Response' : 'Respond to Review Entry'">Respond</summary>
+                            <form th:action="@{/events/{id}/reviews/{rid}/respond(id=${event.id}, rid=${rec.id})}"
+                                  method="post" class="stack" style="margin-top: 8px;">
+                                <textarea name="organizerResponse" rows="2" class="form-control" required
+                                          th:text="${rec.organizerResponse}"
+                                          placeholder="Explain corrective actions taken or evidence uploaded..."></textarea>
+                                <div>
+                                    <button type="submit" class="btn btn-secondary btn-sm">Save Response</button>
+                                </div>
+                            </form>
+                        </details>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Supporting Documents Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Supporting Documents</h2>
+                    <span class="mono text-muted" th:text="${#lists.size(documents) + ' files'}">0 files</span>
+                </div>
+                <div class="card-body stack">
+                    <form sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')"
+                          th:action="@{/events/{id}/documents(id=${event.id})}"
+                          method="post"
+                          enctype="multipart/form-data"
+                          class="details-panel stack">
+                        <div class="form-grid-2">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label for="docFile" class="form-label">Select File (PDF, PNG, JPG, DOCX — max 10 MB)</label>
+                                <input id="docFile" name="file" type="file" class="form-control"
+                                       accept=".pdf,.png,.jpg,.jpeg,.docx" required>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label for="documentNote" class="form-label">Document Note (Optional)</label>
+                                <input id="documentNote" name="documentNote" type="text" class="form-control"
+                                       maxlength="500" placeholder="e.g., Fire NOC draft or campus map scan">
+                            </div>
+                        </div>
+                        <div>
+                            <button type="submit" class="btn btn-secondary btn-sm">Upload Document</button>
+                        </div>
+                    </form>
+
+                    <div th:if="${#lists.isEmpty(documents)}" class="empty-state" style="padding: 18px;">
+                        <p>No supporting documents uploaded yet.</p>
+                    </div>
+
+                    <div th:if="${!#lists.isEmpty(documents)}" class="table-wrap">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Filename &amp; Note</th>
+                                    <th class="num">Size (KB)</th>
+                                    <th>Uploaded</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="doc : ${documents}">
+                                    <td>
+                                        <div style="font-weight: 500;" th:text="${doc.originalFilename}">plan.pdf</div>
+                                        <div th:if="${doc.documentNote != null}" class="text-muted" style="font-size: 12px;"
+                                             th:text="${doc.documentNote}">Note</div>
+                                    </td>
+                                    <td class="num"
+                                        th:text="${#numbers.formatDecimal((doc.fileSizeBytes / 1024.0), 1, 1)}">
+                                        124.5
+                                    </td>
+                                    <td>
+                                        <div th:text="${doc.uploadedBy.fullName}">Uploader</div>
+                                        <div class="mono text-muted" style="font-size: 12px;"
+                                             th:text="${@fmt.utc(doc.uploadedAt)}">2026-11-20 13:00 UTC</div>
+                                    </td>
+                                    <td>
+                                        <div class="inline-form-row">
+                                            <a th:href="@{/events/{id}/documents/{docId}/download(id=${event.id}, docId=${doc.id})}"
+                                               class="btn btn-secondary btn-sm">Download</a>
+                                            <form sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')"
+                                                  th:action="@{/events/{id}/documents/{docId}/delete(id=${event.id}, docId=${doc.id})}"
+                                                  method="post" style="margin: 0;">
+                                                <button type="submit" class="btn btn-ghost btn-sm">Remove</button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column (35%): Category-Tailored Checklist with Progress Bar -->
+        <div class="stack">
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="section-title">Category Planning Checklist</h2>
+                        <div class="text-muted" style="font-size: 12px;" th:text="${event.category.displayName}">Category</div>
+                    </div>
+                    <span class="mono" style="font-weight: 600;" th:text="${progress.completionPct() + '%'}">0%</span>
+                </div>
+                <div class="card-body stack" style="border-bottom: 1px solid var(--border);">
+                    <div class="progress-track" role="progressbar"
+                         th:aria-valuenow="${progress.completionPct()}" aria-valuemin="0" aria-valuemax="100">
+                        <div class="progress-fill" th:style="'width:' + ${progress.completionPct()} + '%'"></div>
+                    </div>
+                    <div class="badge-row" style="justify-content: space-between; font-size: 12px;">
+                        <span class="mono text-secondary"
+                              th:text="${progress.completedCount() + ' / ' + progress.applicableItems() + ' complete'}">0 / 8 complete</span>
+                        <span class="mono text-secondary"
+                              th:text="${progress.signedOffCount() + ' reviewer signed'}">0 reviewer signed</span>
+                    </div>
+
+                    <details sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')" class="details-panel">
+                        <summary>+ Add Custom Checklist Item</summary>
+                        <form th:action="@{/events/{id}/checklist/custom(id=${event.id})}" method="post"
+                              class="stack" style="margin-top: 8px;">
+                            <input type="text" name="sectionName" class="form-control"
+                                   placeholder="Section (e.g., Site Operations)">
+                            <input type="text" name="title" class="form-control" required
+                                   placeholder="Checklist item title">
+                            <input type="text" name="guidanceNote" class="form-control"
+                                   placeholder="Optional guidance note">
+                            <button type="submit" class="btn btn-secondary btn-sm">Add Item</button>
+                        </form>
+                    </details>
+                </div>
+
+                <div class="checklist-list">
+                    <div th:each="item : ${checklist}" class="checklist-item">
+                        <div class="checklist-item-top">
+                            <div>
+                                <div class="checklist-section-tag" th:text="${item.sectionName}">Section</div>
+                                <div style="font-weight: 500;" th:text="${item.title}">Checklist item title</div>
+                            </div>
+                            <span class="badge" th:classappend="${item.status.badgeClass}"
+                                  th:text="${item.status.displayName}">Not Started</span>
+                        </div>
+
+                        <p th:if="${item.guidanceNote != null}" class="text-muted" style="font-size: 12px;"
+                           th:text="${item.guidanceNote}">Guidance</p>
+
+                        <div class="badge-row" style="font-size: 12px;">
+                            <span th:if="${item.reviewerSignedOff}" class="badge badge-verified"
+                                  th:text="${item.signedOffBy != null ? 'Signed Off: ' + item.signedOffBy.fullName : 'Reviewer Signed Off'}">
+                                Signed Off
+                            </span>
+                            <span th:if="${!item.reviewerSignedOff}" class="badge badge-neutral">Pending Sign-Off</span>
+                            <span th:if="${item.assigneeName != null}" class="text-secondary"
+                                  th:text="'Owner: ' + ${item.assigneeName}">Owner</span>
+                        </div>
+
+                        <p th:if="${item.evidenceNotes != null}" class="text-secondary" style="font-size: 12px;"
+                           th:text="'Note: ' + ${item.evidenceNotes}">Evidence</p>
+
+                        <div class="inline-form-row">
+                            <details sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')" style="flex: 1 1 100%;">
+                                <summary style="cursor: pointer; font-size: 12px; color: var(--accent);">Update Status / Evidence</summary>
+                                <form th:action="@{/events/{id}/checklist/{itemId}(id=${event.id}, itemId=${item.id})}"
+                                      method="post" class="stack" style="margin-top: 8px;">
+                                    <select name="status" class="form-control">
+                                        <option th:each="st : ${checklistStatuses}"
+                                                th:value="${st.name()}"
+                                                th:text="${st.displayName}"
+                                                th:selected="${item.status == st}">Status</option>
+                                    </select>
+                                    <input type="text" name="assigneeName" class="form-control"
+                                           th:value="${item.assigneeName}" placeholder="Assignee name">
+                                    <input type="text" name="evidenceNotes" class="form-control"
+                                           th:value="${item.evidenceNotes}" placeholder="Evidence or verification notes">
+                                    <div>
+                                        <button type="submit" class="btn btn-secondary btn-sm">Save Item</button>
+                                    </div>
+                                </form>
+                            </details>
+
+                            <form sec:authorize="hasAnyRole('ADMIN', 'SAFETY_REVIEWER')"
+                                  th:action="@{/events/{id}/checklist/{itemId}/signoff(id=${event.id}, itemId=${item.id})}"
+                                  method="post" style="margin: 0;">
+                                <input type="hidden" name="signedOff" th:value="${!item.reviewerSignedOff}">
+                                <button type="submit" class="btn btn-sm"
+                                        th:classappend="${item.reviewerSignedOff} ? 'btn-ghost' : 'btn-secondary'"
+                                        th:text="${item.reviewerSignedOff} ? 'Clear Sign-Off' : 'Reviewer Sign-Off'">
+                                    Reviewer Sign-Off
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <dialog id="deleteEventDialog" class="modal" sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')">
+        <div class="card-header">
+            <h2 class="section-title">Delete Event Plan</h2>
+        </div>
+        <div class="card-body stack">
+            <p>
+                Delete <strong th:text="${event.name}">Event</strong> along with its checklist, safety review history, and uploaded supporting documents? This action cannot be undone.
+            </p>
+            <div class="inline-form-row" style="justify-content: flex-end;">
+                <button type="button" class="btn btn-secondary"
+                        onclick="document.getElementById('deleteEventDialog').close()">Cancel</button>
+                <form th:action="@{/events/{id}/delete(id=${event.id})}" method="post" style="margin: 0;">
+                    <button type="submit" class="btn btn-danger">Confirm Delete</button>
+                </form>
+            </div>
+        </div>
+    </dialog>
+</section>
+</body>
+</html>

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<body>
+<div th:fragment="eventTabs(eventId, activeTab)" th:if="${eventId != null}" class="event-tabs-bar">
+    <div class="event-tabs-inner">
+        <nav class="event-tabs" aria-label="Event workspace sections">
+            <a th:href="@{/events/{id}(id=${eventId})}"
+               class="event-tab"
+               th:classappend="${activeTab == 'overview'} ? ' active' : ''">Overview</a>
+            <a th:href="@{/events/{id}/venue(id=${eventId})}"
+               class="event-tab"
+               th:classappend="${activeTab == 'venue'} ? ' active' : ''">Venue Plan</a>
+            <a th:href="@{/events/{id}/capacity(id=${eventId})}"
+               class="event-tab"
+               th:classappend="${activeTab == 'capacity'} ? ' active' : ''">Capacity &amp; Staff</a>
+            <a th:href="@{/events/{id}/emergency(id=${eventId})}"
+               class="event-tab"
+               th:classappend="${activeTab == 'emergency'} ? ' active' : ''">Emergency</a>
+            <a th:href="@{/events/{id}/simulation(id=${eventId})}"
+               class="event-tab"
+               th:classappend="${activeTab == 'simulation'} ? ' active' : ''">Simulation</a>
+            <a th:href="@{/events/{id}/live(id=${eventId})}"
+               class="event-tab"
+               th:classappend="${activeTab == 'live'} ? ' active' : ''">Live Ops</a>
+            <a th:href="@{/events/{id}/reports(id=${eventId})}"
+               class="event-tab"
+               th:classappend="${activeTab == 'reports'} ? ' active' : ''">Reports</a>
+        </nav>
+
+        <button type="button"
+                sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER', 'SAFETY_REVIEWER')"
+                class="btn btn-secondary btn-sm event-tabs-assistant-btn"
+                data-assistant-toggle="true"
+                title="Open Planning Assistant Drawer">
+            Planning Assistant
+        </button>
+    </div>
+</div>
+</body>
+</html>

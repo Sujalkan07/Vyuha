@@ -1,0 +1,71 @@
+{
+  "type": "FeatureCollection",
+  "name": "stadium-ground",
+  "properties": {
+    "key": "stadium-ground",
+    "title": "Open Stadium & Fairground",
+    "widthMeters": 150.0,
+    "heightMeters": 110.0
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "role": "outer_boundary",
+        "label": "Stadium & Fairground Fence",
+        "kind": "BOUNDARY"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[12, 12], [138, 12], [138, 98], [12, 98], [12, 12]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "role": "context_building",
+        "label": "North Grandstand Tier",
+        "kind": "BUILDING"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[28, 14], [122, 14], [122, 28], [28, 28], [28, 14]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "role": "context_stage",
+        "label": "Main Field Stage Structure",
+        "kind": "STAGE"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[58, 76], [92, 76], [92, 92], [58, 92], [58, 76]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "role": "context_corridor",
+        "label": "Perimeter Emergency Ring Track",
+        "kind": "ROAD"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[14, 30], [22, 30], [22, 94], [14, 94], [14, 30]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "role": "landmark",
+        "label": "East Turnstile Gate"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [138, 55]
+      }
+    }
+  ]
+}

@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<body>
+<div th:fragment="arrivalsTab" class="stack">
+    <!-- Top KPI Row (max 4 cards per design.md) -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-label">Total Scheduled Arrivals</div>
+            <div class="kpi-value"
+                 th:text="${#numbers.formatInteger(ops.queueProjection.totalExpectedArrivals, 1, 'COMMA')}">0</div>
+            <div class="kpi-sub mono"
+                 th:text="${ops.expectedAttendance != null ? ('Event expected: ' + #numbers.formatInteger(ops.expectedAttendance, 1, 'COMMA')) : 'Event expected attendance not set'}">
+                Event expected: 0
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Active Entry Gate Rate</div>
+            <div class="kpi-value"
+                 th:text="${#numbers.formatDecimal(ops.queueProjection.totalActiveEntryRatePerMin, 1, 1) + ' p/min'}">0.0 p/min</div>
+            <div class="kpi-sub" th:text="${ops.queueProjection.rateSourceNote}">Source</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Peak Projected Queue</div>
+            <div class="kpi-value"
+                 th:text="${#numbers.formatInteger(ops.queueProjection.peakQueueLength, 1, 'COMMA')}">0</div>
+            <div class="kpi-sub"
+                 th:classappend="${ops.queueProjection.overflowIntervalCount > 0} ? 'form-error' : ''"
+                 th:text="${ops.queueProjection.peakQueueWindowLabel != null
+                    ? ('At ' + ops.queueProjection.peakQueueWindowLabel + ' · Holding cap: ' + #numbers.formatInteger(ops.queueProjection.effectiveHoldingCapacity, 1, 'COMMA'))
+                    : ('Holding cap: ' + #numbers.formatInteger(ops.queueProjection.effectiveHoldingCapacity, 1, 'COMMA') + ' persons')}">
+                Holding cap: 0
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Peak Wait &amp; Space Deficit</div>
+            <div class="kpi-value"
+                 th:text="${(ops.queueProjection.hasUnboundedWait || ops.queueProjection.peakWaitMinutes == null) ? 'Unbounded' : (#numbers.formatDecimal(ops.queueProjection.peakWaitMinutes, 1, 1) + ' min')}">
+                0.0 min
+            </div>
+            <div class="kpi-sub mono"
+                 th:classappend="${ops.queueProjection.overflowIntervalCount > 0} ? 'form-error' : ''"
+                 th:text="${ops.queueProjection.maxHoldingDeficitSqm != null
+                    ? ('Deficit: ' + #numbers.formatDecimal(ops.queueProjection.maxHoldingDeficitSqm, 1, 1) + ' m² · ' + ops.queueProjection.overflowIntervalCount + ' overflow')
+                    : (ops.queueProjection.overflowIntervalCount + ' overflow (set holding density for m²)')}">
+                Deficit: 0.0 m²
+            </div>
+        </div>
+    </div>
+
+    <!-- Projection Warnings -->
+    <div th:if="${!#lists.isEmpty(ops.queueProjection.warnings)}" class="stack" style="gap: 8px;">
+        <div th:each="w : ${ops.queueProjection.warnings}"
+             class="banner"
+             th:classappend="${w.severity == 'CRITICAL' ? 'banner-danger' : (w.severity == 'HIGH' ? 'banner-warn' : 'banner-info')}">
+            <strong th:text="${w.title} + ':'">Warning:</strong>
+            <span th:text="${w.detail}">Detail</span>
+        </div>
+    </div>
+
+    <!-- 2-Column Split (65% Timeline & Table / 35% Forms & Gate Breakdown) -->
+    <div class="grid-2col">
+        <div class="stack">
+            <!-- Visual Queue Accumulation vs. Holding Capacity Timeline -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="section-title">Queue Accumulation vs. Holding Space Timeline</h2>
+                        <div class="text-muted" style="font-size: 12px;">
+                            <span class="mono">Q_t = max(0, Q_{t-1} + Arrivals_t - GateCapacity_t)</span>
+                        </div>
+                    </div>
+                    <span class="mono text-muted" style="font-size: 12px;"
+                          th:text="'Holding Cap: ' + ${#numbers.formatInteger(ops.queueProjection.effectiveHoldingCapacity, 1, 'COMMA')} + ' p'">
+                        Holding Cap: 0 p
+                    </span>
+                </div>
+                <div class="card-body stack">
+                    <div th:if="${#lists.isEmpty(ops.queueProjection.intervals)}" class="empty-state">
+                        <p>No arrival wave intervals scheduled yet. Add intervals or generate uniform buckets on the right to project queue buildup.</p>
+                    </div>
+
+                    <div th:if="${!#lists.isEmpty(ops.queueProjection.intervals)}" class="stack">
+                        <div class="wave-legend-row">
+                            <span><span class="zone-swatch-inline" style="background: var(--border-strong);"></span>Expected Arrivals</span>
+                            <span><span class="zone-swatch-inline" style="background: var(--accent);"></span>End Queue (Within Holding)</span>
+                            <span><span class="zone-swatch-inline" style="background: var(--sev-critical);"></span>End Queue (Overflow)</span>
+                            <span class="mono" style="margin-left: auto;"
+                                  th:text="'Max Scale: ' + ${#numbers.formatInteger(ops.queueProjection.chartMaxScale, 1, 'COMMA')} + ' p'">
+                                Max Scale: 100 p
+                            </span>
+                        </div>
+
+                        <div class="wave-chart-scroll">
+                            <div class="wave-chart-frame">
+                                <div class="wave-chart-plot">
+                                    <div th:if="${ops.queueProjection.holdingThresholdLinePct > 0}"
+                                         class="wave-holding-line"
+                                         th:style="'bottom:' + ${ops.queueProjection.holdingThresholdLinePct} + '%'">
+                                        <span class="wave-holding-tag mono"
+                                              th:text="'Holding Cap: ' + ${ops.queueProjection.effectiveHoldingCapacity}">Holding Cap</span>
+                                    </div>
+
+                                    <div th:each="row : ${ops.queueProjection.intervals}" class="wave-col"
+                                         th:title="${(row.clockWindowLabel != null ? row.clockWindowLabel : row.minuteWindowLabel) + ' | Arrivals: ' + row.expectedArrivals + ' | End Q: ' + row.endingQueue}">
+                                        <div class="wave-col-bars">
+                                            <div class="wave-bar wave-bar-arrivals"
+                                                 th:style="'height:' + ${row.arrivalsBarPct} + '%'"></div>
+                                            <div class="wave-bar wave-bar-queue"
+                                                 th:classappend="${row.overflow} ? 'is-overflow' : ''"
+                                                 th:style="'height:' + ${row.queueBarPct} + '%'"></div>
+                                        </div>
+                                        <div class="wave-col-label mono"
+                                             th:text="${row.clockWindowLabel != null ? row.clockWindowLabel : (row.startMinute + '-' + row.endMinute + 'm')}">
+                                            0-15m
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Interval Projection Table -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Arrival Wave Interval Table</h2>
+                    <span class="mono text-muted"
+                          th:text="${#lists.size(ops.queueProjection.intervals) + ' intervals'}">0 intervals</span>
+                </div>
+                <div th:if="${#lists.isEmpty(ops.queueProjection.intervals)}" class="card-body">
+                    <p class="text-muted" style="font-size: 13px;">No arrival buckets defined yet.</p>
+                </div>
+                <div th:if="${!#lists.isEmpty(ops.queueProjection.intervals)}" class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Window</th>
+                                <th>Target Gate</th>
+                                <th class="num">Arrivals</th>
+                                <th class="num">Gate Cap.</th>
+                                <th class="num">Start Q</th>
+                                <th class="num">End Q</th>
+                                <th class="num">Est. Wait</th>
+                                <th>Holding Status</th>
+                                <th sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="row : ${ops.queueProjection.intervals}">
+                                <td>
+                                    <div class="mono" style="font-weight: 600;"
+                                         th:text="${row.clockWindowLabel != null ? row.clockWindowLabel : row.minuteWindowLabel}">0–15 min</div>
+                                    <div class="mono text-muted" style="font-size: 11px;"
+                                         th:if="${row.clockWindowLabel != null}"
+                                         th:text="${row.minuteWindowLabel}">0–15 min</div>
+                                    <div class="text-secondary" style="font-size: 11px;"
+                                         th:if="${row.label != null}" th:text="${row.label}">Wave</div>
+                                </td>
+                                <td>
+                                    <div th:text="${row.targetGateLabel}">All Active Entry Gates</div>
+                                    <div class="mono text-muted" style="font-size: 11px;"
+                                         th:text="${#numbers.formatDecimal(row.effectiveRatePerMin, 1, 1) + ' p/min'}">60.0 p/min</div>
+                                </td>
+                                <td class="num" th:text="${#numbers.formatInteger(row.expectedArrivals, 1, 'COMMA')}">0</td>
+                                <td class="num" th:text="${#numbers.formatInteger(row.gateCapacity, 1, 'COMMA')}">0</td>
+                                <td class="num" th:text="${#numbers.formatInteger(row.openingQueue, 1, 'COMMA')}">0</td>
+                                <td class="num">
+                                    <strong th:text="${#numbers.formatInteger(row.endingQueue, 1, 'COMMA')}">0</strong>
+                                </td>
+                                <td class="num">
+                                    <span th:if="${row.unboundedWait}" class="badge badge-critical">Blocked</span>
+                                    <span th:if="${!row.unboundedWait}"
+                                          th:text="${#numbers.formatDecimal(row.estimatedWaitMinutes, 1, 1) + ' min'}">0.0 min</span>
+                                </td>
+                                <td>
+                                    <div th:if="${row.overflow}">
+                                        <span class="badge badge-critical"
+                                              th:text="'Overflow +' + ${row.overflowPersons} + ' p'">Overflow</span>
+                                        <div class="mono text-secondary" style="font-size: 11px; margin-top: 2px;"
+                                             th:if="${row.holdingDeficitSqm != null}"
+                                             th:text="'Deficit: ' + ${#numbers.formatDecimal(row.holdingDeficitSqm, 1, 1)} + ' m²'">Deficit</div>
+                                        <div class="text-muted" style="font-size: 11px; margin-top: 2px;"
+                                             th:if="${row.holdingDeficitSqm == null}">Enter holding density</div>
+                                    </div>
+                                    <span th:if="${!row.overflow}" class="badge badge-verified">Within Holding</span>
+                                </td>
+                                <td sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')">
+                                    <div class="stack" style="gap: 6px; min-width: 170px;">
+                                        <details class="details-panel">
+                                            <summary>Edit</summary>
+                                            <form th:action="@{/events/{id}/capacity/waves/{wid}/update(id=${event.id}, wid=${row.waveId})}"
+                                                  method="post" class="stack" style="margin-top: 6px; gap: 6px;">
+                                                <input name="label" type="text" maxlength="120" class="form-control"
+                                                       th:value="${row.label}" placeholder="Label">
+                                                <div class="form-grid-2">
+                                                    <input name="startMinute" type="number" min="0" required
+                                                           class="form-control mono" th:value="${row.startMinute}" title="Start min">
+                                                    <input name="endMinute" type="number" min="1" required
+                                                           class="form-control mono" th:value="${row.endMinute}" title="End min">
+                                                </div>
+                                                <input name="expectedArrivals" type="number" min="0" required
+                                                       class="form-control mono" th:value="${row.expectedArrivals}">
+                                                <select name="targetGateId" class="form-control">
+                                                    <option value="">All Active Entry Gates</option>
+                                                    <option th:each="g : ${ops.entryGateOptions}"
+                                                            th:value="${g.id}" th:text="${g.label}"
+                                                            th:selected="${row.targetGateId == g.id}">Gate</option>
+                                                </select>
+                                                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                                            </form>
+                                        </details>
+                                        <form th:action="@{/events/{id}/capacity/waves/{wid}/delete(id=${event.id}, wid=${row.waveId})}"
+                                              method="post" style="margin: 0;">
+                                            <button type="submit" class="btn btn-ghost btn-sm">Remove</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right (35%): Add Interval, Bucket Generator & Gate/Holding Summary -->
+        <div class="stack">
+            <div class="card" sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')">
+                <div class="card-header">
+                    <h2 class="section-title">Add Arrival Wave Interval</h2>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/events/{id}/capacity/waves(id=${event.id})}" method="post" class="stack">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="waveLabel">Wave Label (Optional)</label>
+                            <input id="waveLabel" name="label" type="text" maxlength="120" class="form-control"
+                                   placeholder="e.g., Main Opening Surge">
+                        </div>
+
+                        <div class="form-grid-2">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="startMinute">Start Minute</label>
+                                <input id="startMinute" name="startMinute" type="number" min="0" required
+                                       class="form-control mono" value="0">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="endMinute">End Minute</label>
+                                <input id="endMinute" name="endMinute" type="number" min="1" required
+                                       class="form-control mono" value="15">
+                            </div>
+                        </div>
+
+                        <div class="form-grid-2">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="expectedArrivals">Expected Arrivals</label>
+                                <input id="expectedArrivals" name="expectedArrivals" type="number" min="0" required
+                                       class="form-control mono" placeholder="e.g., 1200">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="targetGateId">Target Entry Gate</label>
+                                <select id="targetGateId" name="targetGateId" class="form-control">
+                                    <option value="">All Active Entry Gates</option>
+                                    <option th:each="g : ${ops.entryGateOptions}"
+                                            th:value="${g.id}" th:text="${g.label}">Gate</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="waveNotes">Notes</label>
+                            <input id="waveNotes" name="notes" type="text" maxlength="500" class="form-control"
+                                   placeholder="Shuttle arrival, headline act gate rush, etc.">
+                        </div>
+
+                        <div>
+                            <button type="submit" class="btn btn-primary btn-sm">Add Wave Interval</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card" sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')">
+                <div class="card-header">
+                    <h2 class="section-title">Quick Uniform Bucket Generator</h2>
+                </div>
+                <div class="card-body">
+                    <details class="details-panel">
+                        <summary>Split total arrivals into equal time buckets</summary>
+                        <form th:action="@{/events/{id}/capacity/waves/generate(id=${event.id})}"
+                              method="post" class="stack" style="margin-top: 8px;">
+                            <div class="form-grid-2">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="bucketMinutes">Bucket Size (min)</label>
+                                    <input id="bucketMinutes" name="bucketMinutes" type="number" min="5" max="240"
+                                           required class="form-control mono" value="15">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="totalDurationMinutes">Total Window (min)</label>
+                                    <input id="totalDurationMinutes" name="totalDurationMinutes" type="number" min="10" max="1440"
+                                           required class="form-control mono" value="60">
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="totalArrivalsGen">Total Arrivals</label>
+                                <input id="totalArrivalsGen" name="totalArrivals" type="number" min="0"
+                                       class="form-control mono" th:value="${ops.expectedAttendance}"
+                                       placeholder="Defaults to expected attendance">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="genGateId">Target Gate</label>
+                                <select id="genGateId" name="targetGateId" class="form-control">
+                                    <option value="">All Active Entry Gates</option>
+                                    <option th:each="g : ${ops.entryGateOptions}"
+                                            th:value="${g.id}" th:text="${g.label}">Gate</option>
+                                </select>
+                            </div>
+                            <label class="inline-form-row" style="font-size: 12px;">
+                                <input type="checkbox" name="replaceExisting" value="true" checked>
+                                <span>Replace existing arrival intervals</span>
+                            </label>
+                            <div>
+                                <button type="submit" class="btn btn-secondary btn-sm">Generate Buckets</button>
+                            </div>
+                        </form>
+                    </details>
+                </div>
+            </div>
+
+            <!-- Entry Gate & Holding Space Reference -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Gate &amp; Holding Space Inputs</h2>
+                </div>
+                <div class="card-body stack">
+                    <dl class="meta-grid">
+                        <div class="meta-item">
+                            <dt>Holding Zone Area</dt>
+                            <dd class="mono"
+                                th:text="${#numbers.formatDecimal(ops.queueProjection.holdingZoneAreaSqm, 1, 1) + ' m²'}">0.0 m²</dd>
+                        </div>
+                        <div class="meta-item">
+                            <dt>Reviewed Holding Cap.</dt>
+                            <dd class="mono"
+                                th:text="${#numbers.formatInteger(ops.queueProjection.effectiveHoldingCapacity, 1, 'COMMA') + ' persons'}">0 persons</dd>
+                        </div>
+                        <div class="meta-item">
+                            <dt>Effective Queue Density</dt>
+                            <dd class="mono"
+                                th:text="${ops.queueProjection.effectiveHoldingDensityPerSqm != null ? (#numbers.formatDecimal(ops.queueProjection.effectiveHoldingDensityPerSqm, 1, 2) + ' p/m²') : 'Not entered'}">Not entered</dd>
+                        </div>
+                        <div class="meta-item">
+                            <dt>Holding Buffer</dt>
+                            <dd class="mono"
+                                th:text="${#numbers.formatInteger(ops.queueProjection.holdingBufferCapacity, 1, 'COMMA') + ' persons'}">0 persons</dd>
+                        </div>
+                    </dl>
+
+                    <div th:if="${#lists.isEmpty(ops.queueProjection.entryGates)}" class="text-muted" style="font-size: 12px;">
+                        No <span class="mono">ENTRY_GATE</span> elements placed yet. Configure gates in
+                        <a th:href="@{/events/{id}/venue(id=${event.id}, mode='infrastructure')}">Venue Plan &rarr; Infrastructure</a>.
+                    </div>
+
+                    <div th:if="${!#lists.isEmpty(ops.queueProjection.entryGates)}" class="stack" style="gap: 6px;">
+                        <div class="form-label">Configured Entry Gates</div>
+                        <div th:each="g : ${ops.queueProjection.entryGates}" class="exclusion-row" style="cursor: default;">
+                            <div>
+                                <div style="font-weight: 500;" th:text="${g.label}">North Gate</div>
+                                <div class="mono text-muted" style="font-size: 11px;"
+                                     th:text="${#numbers.formatDecimal(g.throughputPersonsPerMin, 1, 1) + ' persons/min'}">60.0 persons/min</div>
+                            </div>
+                            <span class="badge"
+                                  th:classappend="${g.active ? 'badge-verified' : 'badge-neutral'}"
+                                  th:text="${g.active ? 'Active' : 'Inactive'}">Active</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

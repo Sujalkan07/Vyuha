@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('User Management')}"></head>
+<body th:replace="~{fragments/layout :: page('User Management', 'users', null, null, ~{::section})}">
+<section class="stack">
+    <div class="page-header">
+        <div>
+            <h1>User Directory</h1>
+            <p class="page-header-subtitle">Registered Vyuha accounts and role assignments (Admin view).</p>
+        </div>
+        <span class="badge badge-neutral">Admin Only</span>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2 class="section-title">Seeded &amp; Registered Accounts</h2>
+            <span class="mono text-muted" th:text="${#lists.size(users) + ' accounts'}">0 accounts</span>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Full Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Created (UTC)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="u : ${users}">
+                        <td class="mono" th:text="${u.id}">1</td>
+                        <td th:text="${u.fullName}">Name</td>
+                        <td class="mono" th:text="${u.email}">email@vyuha.local</td>
+                        <td>
+                            <span class="badge"
+                                  th:classappend="${u.role.name() == 'ADMIN'} ? 'badge-neutral' : (${u.role.name() == 'SAFETY_REVIEWER'} ? 'badge-verified' : (${u.role.name() == 'FIELD_STAFF'} ? 'badge-low' : 'badge-info'))"
+                                  th:text="${u.role.displayName}">Role</span>
+                        </td>
+                        <td>
+                            <span class="badge"
+                                  th:classappend="${u.enabled} ? 'badge-info' : 'badge-critical'"
+                                  th:text="${u.enabled} ? 'Active' : 'Disabled'">Active</span>
+                        </td>
+                        <td class="mono" th:text="${u.audit.createdAt}">2026-01-01T00:00:00Z</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+</body>
+</html>

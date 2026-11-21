@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(${event.name} + ' — Emergency Preparedness')}"></head>
+<body th:replace="~{fragments/layout :: page(${event.name} + ' — Emergency Preparedness', 'events', ${event.id}, 'emergency', ~{::section})}">
+<section class="stack">
+    <div class="page-header">
+        <div>
+            <div class="badge-row" style="margin-bottom: 6px;">
+                <span id="headerValidationBadge" class="badge"
+                      th:classappend="${workspace.validation.hasCriticalWarnings or !#lists.isEmpty(workspace.validation.findings)} ? 'badge-high' : 'badge-verified'"
+                      th:text="${workspace.validation.hasCriticalWarnings or !#lists.isEmpty(workspace.validation.findings)} ? 'Warnings Found' : 'Route Checks Ready'">
+                    Warnings Found
+                </span>
+                <span class="badge badge-neutral" th:text="${event.category.displayName}">College Festival</span>
+            </div>
+            <h1>Emergency Preparedness &amp; Outage Testing</h1>
+            <p class="page-header-subtitle">
+                Emergency exits, external assembly points, &ge; 3.50 m vehicle access validation, prioritized agency contacts, and interactive exit/corridor outage tests.
+            </p>
+        </div>
+
+        <div class="filter-actions">
+            <a th:href="@{/events/{id}/venue(id=${event.id}, mode='infrastructure')}" class="btn btn-secondary btn-sm">
+                Infrastructure Mode
+            </a>
+            <a th:href="@{/events/{id}/venue(id=${event.id}, mode='pathways')}" class="btn btn-secondary btn-sm">
+                Pathways Mode
+            </a>
+        </div>
+    </div>
+
+    <div th:if="${successMessage}" class="banner banner-info" role="status" th:text="${successMessage}">Success</div>
+    <div th:if="${errorMessage}" class="banner banner-danger" role="alert" th:text="${errorMessage}">Error</div>
+
+    <!-- Top KPI Row (max 4 cards per design.md) -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-label">Remaining Egress Capacity</div>
+            <div id="kpiRemainingEgressPct" class="kpi-value"
+                 th:text="${#numbers.formatDecimal(workspace.baselineOutage.remainingEgressCapacityPct, 1, 1) + '%'}">
+                100.0%
+            </div>
+            <div id="kpiEgressSub" class="kpi-sub mono"
+                 th:text="${#numbers.formatDecimal(workspace.baselineOutage.remainingEgressWidthM, 1, 2) + ' / ' + #numbers.formatDecimal(workspace.baselineOutage.baselineTotalEgressWidthM, 1, 2) + ' m open'}">
+                0.00 / 0.00 m open
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Isolated Zones (Outage)</div>
+            <div id="kpiIsolatedZones" class="kpi-value"
+                 th:text="${workspace.baselineOutage.newlyIsolatedZoneCount}">0</div>
+            <div id="kpiIsolatedSub" class="kpi-sub mono"
+                 th:text="${workspace.baselineOutage.reroutedZoneCount + ' rerouted · ' + workspace.baselineOutage.alreadyIsolatedZoneCount + ' baseline unlinked'}">
+                0 rerouted · 0 baseline unlinked
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Vehicle Routes (&ge; 3.50 m)</div>
+            <div id="kpiVehicleRoutes" class="kpi-value"
+                 th:text="${workspace.validation.compliantVehicleRoutes + ' / ' + workspace.validation.totalVehicleRoutes}">
+                0 / 0
+            </div>
+            <div id="kpiVehicleSub" class="kpi-sub mono"
+                 th:text="${workspace.validation.narrowRouteCount + ' narrow · ' + workspace.validation.obstructedRouteCount + ' obstructed'}">
+                0 narrow · 0 obstructed
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Emergency Contacts</div>
+            <div id="kpiContactsCount" class="kpi-value"
+                 th:text="${workspace.validation.contactCount}">0</div>
+            <div id="kpiContactsSub" class="kpi-sub mono"
+                 th:text="${workspace.validation.emergencyExitCount + ' emergency exits · ' + workspace.validation.assemblyPointCount + ' assembly pts'}">
+                0 emergency exits · 0 assembly pts
+            </div>
+        </div>
+    </div>
+
+    <!-- 2-Column Layout (65% Left Map & Analysis / 35% Right Deference, Assets & Contacts) -->
+    <div class="grid-2col">
+        <!-- LEFT COLUMN (65%) -->
+        <div class="stack">
+            <!-- Interactive Emergency & Outage Map -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="section-title">Interactive Emergency &amp; Outage Test Map</h2>
+                        <div class="text-muted" style="font-size: 12px;">
+                            Click any exit gate, emergency exit, or pathway corridor to toggle simulated failure and inspect isolated zones and backup routes.
+                        </div>
+                    </div>
+                    <span id="outageModeBadge" class="badge badge-info">Outage Mode Ready</span>
+                </div>
+
+                <div class="emergency-map-toolbar">
+                    <div class="emergency-map-toolgroup">
+                        <button type="button" class="btn btn-secondary btn-sm emergency-tool-btn active"
+                                data-em-tool="OUTAGE_TEST">Outage Test (Click)</button>
+                        <th:block th:if="${canEdit}">
+                            <button type="button" class="btn btn-secondary btn-sm emergency-tool-btn"
+                                    data-em-tool="PLACE_EXIT">+ Exit</button>
+                            <button type="button" class="btn btn-secondary btn-sm emergency-tool-btn"
+                                    data-em-tool="DRAW_ASSEMBLY">+ Assembly Point</button>
+                            <button type="button" class="btn btn-secondary btn-sm emergency-tool-btn"
+                                    data-em-tool="DRAW_AMBULANCE">+ Ambulance Route</button>
+                            <button type="button" class="btn btn-secondary btn-sm emergency-tool-btn"
+                                    data-em-tool="DRAW_FIRE">+ Fire Route</button>
+                            <button type="button" id="finishDrawBtn" class="btn btn-primary btn-sm" style="display: none;">
+                                Finish Drawing
+                            </button>
+                            <button type="button" id="cancelDrawBtn" class="btn btn-ghost btn-sm" style="display: none;">
+                                Cancel
+                            </button>
+                        </th:block>
+                    </div>
+
+                    <div class="emergency-map-toolgroup">
+                        <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer;">
+                            <input type="checkbox" id="emergencyExitsOnlyToggle">
+                            <span>Emergency Exits Only</span>
+                        </label>
+                        <button type="button" id="resetOutageBtn" class="btn btn-secondary btn-sm">Reset Outage</button>
+                    </div>
+                </div>
+
+                <div id="emergencyWorkspaceRoot"
+                     class="emergency-map-viewport"
+                     th:attr="data-event-id=${event.id},data-can-edit=${canEdit},data-initial-state=${initialStateJson}">
+                    <canvas id="emergencyCanvas" class="emergency-map-canvas"
+                            aria-label="Interactive emergency preparedness and outage test map"></canvas>
+
+                    <div id="emCanvasHint" class="emergency-map-hint" style="display: none;">
+                        Click canvas to place emergency point.
+                    </div>
+
+                    <div class="emergency-map-zoom" aria-label="Map zoom controls">
+                        <button type="button" id="emZoomOutBtn" class="btn btn-ghost btn-sm" title="Zoom Out">-</button>
+                        <button type="button" id="emZoom100Btn" class="btn btn-ghost btn-sm mono" title="Reset Zoom">100%</button>
+                        <button type="button" id="emZoomInBtn" class="btn btn-ghost btn-sm" title="Zoom In">+</button>
+                        <button type="button" id="emZoomFitBtn" class="btn btn-ghost btn-sm" title="Fit Venue">Fit</button>
+                    </div>
+
+                    <div class="emergency-map-legend">
+                        <div class="emergency-legend-header">
+                            <strong>Emergency Map Legend</strong>
+                            <button type="button" id="emLegendToggleBtn" class="btn btn-ghost btn-sm" style="padding: 1px 6px; font-size: 11px;">Hide</button>
+                        </div>
+                        <div id="emLegendList" class="emergency-legend-list">
+                            <div class="emergency-legend-item">
+                                <span class="emergency-legend-swatch" style="background: rgba(185, 28, 28, 0.25); border-color: #B91C1C;"></span>
+                                <span>Isolated / Closed</span>
+                            </div>
+                            <div class="emergency-legend-item">
+                                <span class="emergency-legend-swatch" style="background: rgba(15, 118, 110, 0.2); border-color: #0F766E;"></span>
+                                <span>Backup Route / Assembly</span>
+                            </div>
+                            <div class="emergency-legend-item">
+                                <span class="emergency-legend-swatch" style="background: rgba(220, 38, 38, 0.2); border-color: #DC2626;"></span>
+                                <span>Ambulance / Emergency Exit</span>
+                            </div>
+                            <div class="emergency-legend-item">
+                                <span class="emergency-legend-swatch" style="background: rgba(234, 88, 12, 0.2); border-color: #EA580C;"></span>
+                                <span>Fire Access Route</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="emergency-map-statusbar">
+                    <span id="emCursorCoords" class="mono">X: 0.0 m, Y: 0.0 m</span>
+                    <span id="emActiveModeNote">Click any exit or pathway edge on the map to toggle simulated outage · Drag with middle-mouse or Shift+drag to pan.</span>
+                </div>
+            </div>
+
+            <!-- Outage Failure-Mode Impact Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="section-title">Outage Simulation &amp; Backup Route Impact</h2>
+                        <div class="text-muted" style="font-size: 12px;">
+                            Recomputes reachability and shortest surviving paths via Java MovementGraphService.
+                        </div>
+                    </div>
+                    <span id="outageCountBadge" class="badge badge-neutral">0 disabled</span>
+                </div>
+
+                <div class="card-body stack">
+                    <div id="outageChipsContainer" class="outage-chip-list">
+                        <span class="text-muted" style="font-size: 12px;">
+                            No exits or corridors disabled — showing baseline emergency reachability.
+                        </span>
+                    </div>
+
+                    <div class="meta-grid">
+                        <div class="meta-item">
+                            <dt>Egress Width Loss</dt>
+                            <dd id="outageWidthLossText" class="mono"
+                                th:text="${#numbers.formatDecimal(workspace.baselineOutage.egressWidthLossM, 1, 2) + ' m lost (' + #numbers.formatDecimal(workspace.baselineOutage.egressWidthLossPct, 1, 1) + '% drop)'}">
+                                0.00 m lost (0.0% drop)
+                            </dd>
+                        </div>
+                        <div class="meta-item">
+                            <dt>Portal Throughput Remaining</dt>
+                            <dd id="outageThroughputText" class="mono"
+                                th:text="${#numbers.formatDecimal(workspace.baselineOutage.remainingThroughputPerMin, 1, 1) + ' / ' + #numbers.formatDecimal(workspace.baselineOutage.baselineThroughputPerMin, 1, 1) + ' p/min (' + #numbers.formatDecimal(workspace.baselineOutage.remainingThroughputPct, 1, 1) + '%)'}">
+                                0.0 / 0.0 p/min (100.0%)
+                            </dd>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="constraint-bar-track">
+                            <div id="outageCapacityBar" class="constraint-bar-fill"
+                                 th:style="'width:' + ${workspace.baselineOutage.remainingEgressCapacityPct} + '%'"></div>
+                        </div>
+                    </div>
+
+                    <details class="details-panel">
+                        <summary>Toggle Exits &amp; Corridors Manually (Click or Check to Simulate Closure)</summary>
+                        <div id="outageQuickToggleGrid" class="outage-toggle-grid"></div>
+                    </details>
+
+                    <div id="zoneImpactEmpty" class="empty-state"
+                         th:style="${#lists.isEmpty(workspace.baselineOutage.zoneImpacts)} ? '' : 'display:none;'">
+                        <p>No public zone hubs or gathering zones are connected to the movement network yet. Build pathways in Venue Plan &rarr; Pathways Mode to test zone outage rerouting.</p>
+                        <a th:href="@{/events/{id}/venue(id=${event.id}, mode='pathways')}" class="btn btn-secondary btn-sm">
+                            Open Pathways Mode
+                        </a>
+                    </div>
+
+                    <div id="zoneImpactTableWrap" class="table-wrap"
+                         th:style="${!#lists.isEmpty(workspace.baselineOutage.zoneImpacts)} ? '' : 'display:none;'">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Zone / Hub</th>
+                                    <th>Status</th>
+                                    <th>Baseline Exit</th>
+                                    <th>Backup Exit</th>
+                                    <th class="num">Detour</th>
+                                    <th class="num">Min Width</th>
+                                    <th>Locate</th>
+                                </tr>
+                            </thead>
+                            <tbody id="zoneImpactTableBody">
+                                <tr th:each="z : ${workspace.baselineOutage.zoneImpacts}">
+                                    <td>
+                                        <strong class="mono" th:text="${z.zoneCode}">AUD-1</strong>
+                                        <div class="text-secondary" style="font-size: 12px;" th:text="${z.zoneName}">Main Audience</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge"
+                                              th:classappend="${z.status.badgeClass}"
+                                              th:text="${z.status.displayName}">Unaffected</span>
+                                    </td>
+                                    <td>
+                                        <span th:text="${z.baselineExitLabel != null ? z.baselineExitLabel : '—'}">—</span>
+                                        <div th:if="${z.baselineDistanceM != null}" class="mono text-muted" style="font-size: 11px;"
+                                             th:text="${#numbers.formatDecimal(z.baselineDistanceM, 1, 1) + ' m'}">0.0 m</div>
+                                    </td>
+                                    <td>
+                                        <span th:text="${z.backupExitLabel != null ? z.backupExitLabel : 'No surviving exit'}">Backup</span>
+                                        <div th:if="${z.backupDistanceM != null}" class="mono text-muted" style="font-size: 11px;"
+                                             th:text="${#numbers.formatDecimal(z.backupDistanceM, 1, 1) + ' m'}">0.0 m</div>
+                                    </td>
+                                    <td class="num"
+                                        th:text="${z.detourDistanceM != null ? ('+' + #numbers.formatDecimal(z.detourDistanceM, 1, 1) + ' m') : '—'}">
+                                        —
+                                    </td>
+                                    <td class="num">
+                                        <span th:if="${z.backupMinWidthM != null}"
+                                              th:classappend="${z.backupNarrowWarning} ? 'form-error' : ''"
+                                              th:text="${#numbers.formatDecimal(z.backupMinWidthM, 1, 2) + ' m'}">3.50 m</span>
+                                        <span th:if="${z.backupMinWidthM == null}">—</span>
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn btn-ghost btn-sm js-locate-btn"
+                                                th:if="${z.locateX != null and z.locateY != null}"
+                                                th:attr="data-x=${z.locateX},data-y=${z.locateY}">Locate</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ambulance & Fire Access Route Validation Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="section-title">Ambulance &amp; Fire Access Validation (&ge; 3.50 m)</h2>
+                        <div class="text-muted" style="font-size: 12px;">
+                            Checks clear width (&ge; 3.50 m) and JTS intersection against structures and solid exclusions.
+                        </div>
+                    </div>
+                    <span id="routeCountPill" class="mono text-muted"
+                          th:text="${workspace.validation.totalVehicleRoutes + ' routes'}">0 routes</span>
+                </div>
+
+                <div class="card-body stack">
+                    <div id="routeStatusEmpty" class="banner banner-warn"
+                         th:style="${#lists.isEmpty(workspace.validation.routeStatuses)} ? '' : 'display:none;'">
+                        No Ambulance or Fire access routes or lanes have been defined yet. Draw routes on the map or place Ambulance/Fire Access Lanes in Infrastructure Mode.
+                    </div>
+
+                    <div id="routeStatusTableWrap" class="table-wrap"
+                         th:style="${!#lists.isEmpty(workspace.validation.routeStatuses)} ? '' : 'display:none;'">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Route / Lane</th>
+                                    <th>Role</th>
+                                    <th class="num">Clear Width</th>
+                                    <th>Obstructions</th>
+                                    <th>Check</th>
+                                    <th>Locate</th>
+                                </tr>
+                            </thead>
+                            <tbody id="routeStatusTableBody">
+                                <tr th:each="r : ${workspace.validation.routeStatuses}">
+                                    <td>
+                                        <strong th:text="${r.label}">East Ambulance Route</strong>
+                                        <div class="text-muted mono" style="font-size: 11px;" th:text="${r.sourceType}">EMERGENCY_ASSET</div>
+                                    </td>
+                                    <td th:text="${r.routeRole}">Ambulance Route</td>
+                                    <td class="num"
+                                        th:classappend="${!r.widthCompliant} ? 'form-error' : ''"
+                                        th:text="${r.clearWidthM != null ? (#numbers.formatDecimal(r.clearWidthM, 1, 2) + ' m') : 'Missing'}">
+                                        4.00 m
+                                    </td>
+                                    <td>
+                                        <span th:if="${r.obstacleCount == 0}" class="text-secondary">0 obstacles</span>
+                                        <span th:if="${r.obstacleCount > 0}" class="form-error"
+                                              th:text="${#strings.listJoin(r.obstacleLabels, ', ')}">Obstacle</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge"
+                                              th:classappend="${r.compliant} ? 'badge-verified' : 'badge-critical'"
+                                              th:text="${r.compliant} ? 'Clear >= 3.5 m' : 'Action Required'">Clear >= 3.5 m</span>
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn btn-ghost btn-sm js-locate-btn"
+                                                th:if="${r.locateX != null and r.locateY != null}"
+                                                th:attr="data-x=${r.locateX},data-y=${r.locateY}">Locate</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div id="validationFindingsList" class="stack">
+                        <div th:if="${#lists.isEmpty(workspace.validation.findings)}" class="banner banner-info">
+                            All emergency vehicle route checks, assembly points, exits, and contact records are populated without open validation warnings.
+                        </div>
+                        <div th:each="f : ${workspace.validation.findings}" class="review-entry">
+                            <div class="review-entry-header">
+                                <span class="badge"
+                                      th:classappend="${f.severity.name() == 'CRITICAL' ? 'badge-critical' : (f.severity.name() == 'HIGH' ? 'badge-high' : (f.severity.name() == 'LOW' ? 'badge-low' : 'badge-info'))}"
+                                      th:text="${f.severity.name()}">CRITICAL</span>
+                                <strong style="flex: 1;" th:text="${f.title}">Finding title</strong>
+                                <button type="button" class="btn btn-ghost btn-sm js-locate-btn"
+                                        th:if="${f.locateX != null and f.locateY != null}"
+                                        th:attr="data-x=${f.locateX},data-y=${f.locateY}">Locate</button>
+                            </div>
+                            <p class="text-secondary" style="font-size: 13px;" th:text="${f.description}">Description</p>
+                            <div class="mono text-muted" style="font-size: 11px;"
+                                 th:text="${f.measuredValue + ' · ' + f.thresholdNote}">Measured · Threshold</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN (35%) -->
+        <div class="stack">
+            <!-- Mandatory Strict Authority Deference Banner -->
+            <div class="banner banner-warn" role="note" id="authorityDeferenceBanner">
+                <strong>Authority Deference Notice:</strong> This emergency preparedness workspace supports layout contingency review only. All real-world evacuation triggers, emergency response procedures, and command decisions strictly defer to officially approved response plans and statutory authorities (police, fire brigade, medical services, and local administration).
+            </div>
+
+            <!-- Emergency Assets Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="section-title">Emergency Assets</h2>
+                        <div class="text-muted" style="font-size: 12px;">
+                            Exits, external assembly points, and ambulance/fire access routes.
+                        </div>
+                    </div>
+                    <span id="assetCountPill" class="mono text-muted"
+                          th:text="${#lists.size(workspace.assets) + ' assets'}">0 assets</span>
+                </div>
+
+                <div class="card-body stack">
+                    <div id="assetsListContainer" class="stack">
+                        <div th:if="${#lists.isEmpty(workspace.assets)}" class="empty-state" style="padding: 18px 10px;">
+                            <p>No emergency-specific assets added yet. Use the map drawing buttons or the form below to mark exits, assembly points, or vehicle access routes.</p>
+                        </div>
+
+                        <div th:each="a : ${workspace.assets}" class="asset-item">
+                            <div style="min-width: 0; flex: 1;">
+                                <div class="badge-row" style="margin-bottom: 4px;">
+                                    <span class="badge badge-neutral mono" th:text="${a.shortCode}">AMB</span>
+                                    <strong th:text="${a.label}">Asset Label</strong>
+                                </div>
+                                <div class="mono text-muted" style="font-size: 11px;">
+                                    <span th:text="${a.assetTypeName}">Ambulance Route</span>
+                                    <span th:if="${a.minWidthM != null}"
+                                          th:text="${' · Width: ' + #numbers.formatDecimal(a.minWidthM, 1, 2) + ' m'}"></span>
+                                    <span th:if="${a.lengthM != null}"
+                                          th:text="${' · Length: ' + #numbers.formatDecimal(a.lengthM, 1, 1) + ' m'}"></span>
+                                    <span th:if="${a.areaSqm != null}"
+                                          th:text="${' · Area: ' + #numbers.formatDecimal(a.areaSqm, 1, 1) + ' m²'}"></span>
+                                </div>
+                                <div th:if="${a.capacityNotes != null}" class="text-secondary" style="font-size: 12px; margin-top: 2px;"
+                                     th:text="${'Capacity: ' + a.capacityNotes}">Capacity</div>
+                                <div th:if="${a.notes != null}" class="text-muted" style="font-size: 12px;"
+                                     th:text="${a.notes}">Notes</div>
+                            </div>
+                            <div class="filter-actions" style="flex-shrink: 0;">
+                                <button type="button" class="btn btn-ghost btn-sm js-locate-btn"
+                                        th:if="${a.anchorPoint != null}"
+                                        th:attr="data-x=${a.anchorPoint.x},data-y=${a.anchorPoint.y}">Locate</button>
+                                <form th:if="${canEdit}"
+                                      th:action="@{/events/{id}/emergency/assets/{aid}/delete(id=${event.id}, aid=${a.id})}"
+                                      method="post" style="margin: 0;">
+                                    <button type="submit" class="btn btn-ghost btn-sm" style="color: var(--sev-critical);">Delete</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <details th:if="${canEdit}" class="details-panel">
+                        <summary>+ Add Emergency Asset by Coordinates / WKT</summary>
+                        <form th:action="@{/events/{id}/emergency/assets(id=${event.id})}" method="post" class="stack" style="margin-top: 8px;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="assetTypeSelect">Asset Type</label>
+                                <select id="assetTypeSelect" name="assetType" class="form-control">
+                                    <option th:each="t : ${assetTypes}" th:value="${t.name()}" th:text="${t.displayName}">Type</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="assetLabelInput">Label</label>
+                                <input id="assetLabelInput" name="label" type="text" maxlength="160" required
+                                       class="form-control" placeholder="e.g., East Ambulance Gate &amp; Lane">
+                            </div>
+                            <div class="form-grid-2">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="assetWidthInput">Min Width (m)</label>
+                                    <input id="assetWidthInput" name="minWidthM" type="number" step="0.1" min="0.3" max="50"
+                                           class="form-control mono" placeholder="4.0">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="assetCapacityInput">Capacity Notes</label>
+                                    <input id="assetCapacityInput" name="capacityNotes" type="text" maxlength="500"
+                                           class="form-control" placeholder="e.g., Holds 1,200 persons">
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="assetWktInput">Geometry WKT (or use X / Y below for Point)</label>
+                                <input id="assetWktInput" name="geometryWkt" type="text"
+                                       class="form-control mono" placeholder="LINESTRING (0 10, 40 10) or POLYGON ((...))">
+                            </div>
+                            <div class="form-grid-2">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="assetXInput">Point X (m)</label>
+                                    <input id="assetXInput" name="x" type="number" step="0.1" class="form-control mono" placeholder="10.0">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="assetYInput">Point Y (m)</label>
+                                    <input id="assetYInput" name="y" type="number" step="0.1" class="form-control mono" placeholder="20.0">
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="assetNotesInput">Notes</label>
+                                <input id="assetNotesInput" name="notes" type="text" maxlength="500" class="form-control"
+                                       placeholder="Gate height clearance, marshal keyholder, or muster notes">
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm">Save Emergency Asset</button>
+                        </form>
+                    </details>
+                </div>
+            </div>
+
+            <!-- Emergency Contacts Directory Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <h2 class="section-title">Emergency Contacts Directory</h2>
+                        <div class="text-muted" style="font-size: 12px;">
+                            Prioritized statutory &amp; incident command contacts.
+                        </div>
+                    </div>
+                    <span class="mono text-muted" th:text="${#lists.size(workspace.contacts) + ' contacts'}">0 contacts</span>
+                </div>
+
+                <div class="card-body stack">
+                    <div th:if="${#lists.isEmpty(workspace.contacts)}" class="empty-state" style="padding: 18px 10px;">
+                        <p>No emergency agency contacts recorded yet. Add Police Control, Fire Brigade, Ambulance, and Event Incident Commander numbers below.</p>
+                    </div>
+
+                    <div th:each="c : ${workspace.contacts}" class="contact-item">
+                        <div class="contact-item-top">
+                            <div>
+                                <div class="badge-row">
+                                    <span class="badge badge-info mono" th:text="'#' + ${c.priorityOrder}">#1</span>
+                                    <strong th:text="${c.agencyName}">City Fire Brigade</strong>
+                                </div>
+                                <div class="text-secondary" style="font-size: 12px; margin-top: 2px;">
+                                    <span th:text="${c.role}">Fire Response Lead</span> ·
+                                    <span th:text="${c.contactName}">Officer Name</span>
+                                </div>
+                            </div>
+                            <span class="mono" style="font-weight: 600;" th:text="${c.phone}">101 / +91-...</span>
+                        </div>
+
+                        <div th:if="${c.notes != null}" class="text-muted" style="font-size: 12px;" th:text="${c.notes}">Notes</div>
+
+                        <div th:if="${canEdit}" class="filter-actions" style="justify-content: flex-end;">
+                            <details class="details-panel" style="width: 100%; padding: 4px 8px;">
+                                <summary style="font-size: 12px;">Edit Contact</summary>
+                                <form th:action="@{/events/{id}/emergency/contacts/{cid}/update(id=${event.id}, cid=${c.id})}"
+                                      method="post" class="stack" style="margin-top: 6px;">
+                                    <div class="form-grid-2">
+                                        <input name="agencyName" type="text" required maxlength="160" class="form-control"
+                                               th:value="${c.agencyName}" placeholder="Agency">
+                                        <input name="role" type="text" required maxlength="120" class="form-control"
+                                               th:value="${c.role}" list="emergencyRolePresets" placeholder="Role">
+                                    </div>
+                                    <div class="form-grid-2">
+                                        <input name="contactName" type="text" required maxlength="150" class="form-control"
+                                               th:value="${c.contactName}" placeholder="Contact Name">
+                                        <input name="phone" type="text" required maxlength="50" class="form-control mono"
+                                               th:value="${c.phone}" placeholder="Phone">
+                                    </div>
+                                    <div class="form-grid-2">
+                                        <input name="priorityOrder" type="number" min="1" max="99" class="form-control mono"
+                                               th:value="${c.priorityOrder}" placeholder="Priority">
+                                        <input name="notes" type="text" maxlength="500" class="form-control"
+                                               th:value="${c.notes}" placeholder="Radio channel / gate staging notes">
+                                    </div>
+                                    <button type="submit" class="btn btn-secondary btn-sm">Update Contact</button>
+                                </form>
+                            </details>
+                            <form th:action="@{/events/{id}/emergency/contacts/{cid}/delete(id=${event.id}, cid=${c.id})}"
+                                  method="post" style="margin: 0;">
+                                <button type="submit" class="btn btn-ghost btn-sm" style="color: var(--sev-critical);">Remove</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <details th:if="${canEdit}" class="details-panel">
+                        <summary>+ Add Emergency Contact</summary>
+                        <form th:action="@{/events/{id}/emergency/contacts(id=${event.id})}" method="post" class="stack" style="margin-top: 8px;">
+                            <div class="form-grid-2">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="contactAgencyInput">Agency</label>
+                                    <input id="contactAgencyInput" name="agencyName" type="text" required maxlength="160"
+                                           class="form-control" placeholder="e.g., Fire &amp; Rescue Dept">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="contactRoleInput">Role</label>
+                                    <input id="contactRoleInput" name="role" type="text" required maxlength="120"
+                                           class="form-control" list="emergencyRolePresets" placeholder="Fire Brigade">
+                                </div>
+                            </div>
+                            <div class="form-grid-2">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="contactNameInput">Contact Person</label>
+                                    <input id="contactNameInput" name="contactName" type="text" required maxlength="150"
+                                           class="form-control" placeholder="Station Officer">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="contactPhoneInput">Phone / Hotline</label>
+                                    <input id="contactPhoneInput" name="phone" type="text" required maxlength="50"
+                                           class="form-control mono" placeholder="101 / +91-98000-00001">
+                                </div>
+                            </div>
+                            <div class="form-grid-2">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="contactPriorityInput">Priority Order</label>
+                                    <input id="contactPriorityInput" name="priorityOrder" type="number" min="1" max="99" value="1"
+                                           class="form-control mono">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label class="form-label" for="contactNotesInput">Staging / Radio Notes</label>
+                                    <input id="contactNotesInput" name="notes" type="text" maxlength="500"
+                                           class="form-control" placeholder="Staging at East Gate">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm">Add Emergency Contact</button>
+                        </form>
+                    </details>
+
+                    <datalist id="emergencyRolePresets">
+                        <option value="Police Control">
+                        <option value="Fire Brigade">
+                        <option value="Ambulance / Hospital">
+                        <option value="Event Incident Commander">
+                        <option value="Venue Security Lead">
+                        <option value="Local Administration">
+                    </datalist>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Native Modal Dialog for Canvas-Drawn Emergency Assets -->
+    <dialog id="emergencyAssetDialog" class="modal">
+        <form id="emergencyAssetDialogForm" class="stack">
+            <div class="card-header">
+                <h2 class="section-title" id="emDialogTitle">Save Emergency Asset</h2>
+                <button type="button" id="emDialogCloseBtn" class="btn btn-ghost btn-sm">Close</button>
+            </div>
+            <div class="card-body stack">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="emDialogLabel">Label</label>
+                    <input id="emDialogLabel" type="text" required maxlength="160" class="form-control"
+                           placeholder="e.g., East Ambulance Corridor">
+                </div>
+                <div id="emDialogWidthGroup" class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="emDialogWidth">Clear Width (m)</label>
+                    <input id="emDialogWidth" type="number" step="0.1" min="0.3" max="50" value="4.0"
+                           class="form-control mono">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="emDialogCapacity">Capacity / Staging Notes</label>
+                    <input id="emDialogCapacity" type="text" maxlength="500" class="form-control"
+                           placeholder="e.g., Holds 800 evacuees or 4.0 m unobstructed lane">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="emDialogNotes">Additional Notes</label>
+                    <input id="emDialogNotes" type="text" maxlength="500" class="form-control">
+                </div>
+                <div id="emDialogError" class="form-error" style="display: none;"></div>
+                <div class="form-actions" style="justify-content: flex-end;">
+                    <button type="button" id="emDialogCancelBtn" class="btn btn-secondary btn-sm">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Save Asset</button>
+                </div>
+            </div>
+        </form>
+    </dialog>
+
+    <script type="module" th:src="@{/js/emergency-workspace.js}"></script>
+</section>
+</body>
+</html>

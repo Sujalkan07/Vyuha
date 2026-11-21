@@ -1,0 +1,64 @@
+{
+  "documentId": "NDMA-2014",
+  "documentTitle": "NDMA India — Managing Crowds at Events and Venues of Mass Gathering",
+  "authority": "National Disaster Management Authority, Government of India",
+  "publicationYear": 2014,
+  "category": "CROWD_MANAGEMENT",
+  "categoryDisplayName": "Crowd Management",
+  "sections": [
+    {
+      "sectionId": "NDMA-2014-S2.1",
+      "sectionNumber": "Section 2.1",
+      "sectionTitle": "Venue Layout, Usable Gathering Space & Structural Exclusions",
+      "topics": ["usable area", "exclusions", "site plan", "capacity", "boundary", "layout"],
+      "applicableCodes": ["AREA_BREAKDOWN", "UNASSIGNED_AREA", "CAPACITY_SPACE"],
+      "summary": "Calculate gathering space strictly after deducting buildings, stages, utility compounds, restricted areas, and reserved movement corridors so holding estimates reflect actual standing ground.",
+      "verbatimQuote": "Venue capacity planning must distinguish gross site footprint from net usable gathering space by excluding permanent structures, stages, technical compounds, and dedicated circulation corridors."
+    },
+    {
+      "sectionId": "NDMA-2014-S3.2",
+      "sectionNumber": "Section 3.2",
+      "sectionTitle": "Separating Entry and Exit Pedestrian Flows",
+      "topics": ["contra-flow", "one-way", "entry", "exit", "bidirectional", "crossing"],
+      "applicableCodes": ["CONTRA_FLOW_CONFLICT", "CROSSING_QUEUE_CONFLICT", "CLOSED_EXIT"],
+      "summary": "Maintain unidirectional pedestrian circulation where high-volume ingress meets egress, avoiding shared narrow bidirectional corridors and crossing queues.",
+      "verbatimQuote": "Incoming and outgoing pedestrian streams should be separated through dedicated one-way corridors and segregated gate funnels to prevent head-on contra-flow compression and queue cross-cutting."
+    },
+    {
+      "sectionId": "NDMA-2014-S3.4",
+      "sectionNumber": "Section 3.4",
+      "sectionTitle": "Queue Management, Holding Zones & Barricading Discipline",
+      "topics": ["queue", "holding", "barricade", "snake", "serpentine", "screening", "overflow"],
+      "applicableCodes": ["CROSSING_QUEUE_CONFLICT", "HOLDING_OVERFLOW", "OVERLAPPING_RIGID_STRUCTURES"],
+      "summary": "Design dedicated holding zones ahead of security screening and entry gates with properly anchored barricades that do not spill into lateral walkways or obstruct exit aprons.",
+      "verbatimQuote": "Dedicated holding buffers and zig-zag queue lanes must be sized for peak arrival surges so waiting crowds do not spill across active circulation routes or block adjacent exit discharges."
+    },
+    {
+      "sectionId": "NDMA-2014-S3.6",
+      "sectionNumber": "Section 3.6",
+      "sectionTitle": "Preventing Stall, Hawker & Utility Pinch Points",
+      "topics": ["stall", "food stall", "hawker", "choke", "pinch point", "water", "utility", "stage"],
+      "applicableCodes": ["EMERGENCY_LANE_INTRUSION", "WATER_UTILITY_HAZARD", "OVERLAPPING_RIGID_STRUCTURES", "NARROW_WALKWAY"],
+      "summary": "Keep food stalls, water distribution points, and temporary structures clear of circulation corridors, ambulance lanes, and high-voltage stage rear areas.",
+      "verbatimQuote": "Commercial stalls, water kiosks, and temporary utility fixtures shall not encroach upon pedestrian walkways, exit clearance aprons, or emergency vehicle lanes."
+    },
+    {
+      "sectionId": "NDMA-2014-S4.1",
+      "sectionNumber": "Section 4.1",
+      "sectionTitle": "Dedicated Emergency Access Corridors & Ambulance Routes",
+      "topics": ["ambulance", "fire", "emergency", "lane", "corridor", "width", "intrusion", "vehicle"],
+      "applicableCodes": ["EMERGENCY_LANE_INTRUSION", "AMBULANCE_ROUTE", "FIRE_ROUTE"],
+      "summary": "Preserve continuous, unobstructed emergency vehicle lanes connecting perimeter roads to medical posts and stage zones throughout the full event schedule.",
+      "verbatimQuote": "Unobstructed emergency access lanes for ambulances and fire tenders must remain physically segregated from general spectator zones and free of temporary stalls, barricades, or parked equipment."
+    },
+    {
+      "sectionId": "NDMA-2014-S5.2",
+      "sectionNumber": "Section 5.2",
+      "sectionTitle": "Medical Posts, Control Rooms & Authority Coordination",
+      "topics": ["medical", "control room", "reachable", "police", "fire", "authority", "review"],
+      "applicableCodes": ["UNREACHABLE_SERVICE_POST", "OUT_OF_BOUNDS", "AUTHORITY_DEFERENCE"],
+      "summary": "Locate medical aid posts and event control rooms on walkable routes with direct ambulance access, and align operational command with statutory police, fire, and medical authorities.",
+      "verbatimQuote": "Medical posts and joint command centres must connect directly to both walkable crowd zones and emergency vehicle corridors, with statutory authorities retaining final operational command."
+    }
+  ]
+}

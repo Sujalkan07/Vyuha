@@ -1,0 +1,106 @@
+{
+  "type": "FeatureCollection",
+  "name": "campus-quadrangle",
+  "properties": {
+    "key": "campus-quadrangle",
+    "title": "Campus Central Quadrangle",
+    "widthMeters": 120.0,
+    "heightMeters": 90.0
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "role": "outer_boundary",
+        "label": "Campus Quadrangle Site Perimeter",
+        "kind": "BOUNDARY"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[8, 10], [112, 10], [112, 82], [8, 82], [8, 10]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "role": "context_building",
+        "label": "Main Academic Hall (North)",
+        "kind": "BUILDING"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[14, 14], [48, 14], [48, 28], [14, 28], [14, 14]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "role": "context_building",
+        "label": "Science Block (West)",
+        "kind": "BUILDING"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[12, 34], [24, 34], [24, 68], [12, 68], [12, 34]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "role": "context_stage",
+        "label": "Auditorium Stage Apron",
+        "kind": "STAGE"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[46, 62], [74, 62], [74, 76], [46, 76], [46, 62]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "role": "context_corridor",
+        "label": "East Campus Vehicle & Ambulance Road",
+        "kind": "ROAD"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[96, 10], [108, 10], [108, 82], [96, 82], [96, 10]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "role": "context_lawn",
+        "label": "Central Open Lawn",
+        "kind": "OPEN_GROUND"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[32, 30], [88, 30], [88, 58], [32, 58], [32, 30]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "role": "landmark",
+        "label": "North Main Gate Landmark"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [62, 10]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "role": "landmark",
+        "label": "South Gate Landmark"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [60, 82]
+      }
+    }
+  ]
+}

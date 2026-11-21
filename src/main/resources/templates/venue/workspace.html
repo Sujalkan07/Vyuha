@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/workspace-shell :: head(${event.name} + ' — Venue Plan')}"></head>
+<body th:replace="~{fragments/workspace-shell :: workspace(${event.name} + ' — Venue Plan', 'events', ${event.id}, 'venue', ~{::workspaceBar}, ~{::toolRail}, ~{::canvasArea}, ~{::inspectorBody}, ~{::statusStrip})}">
+
+<th:block th:fragment="workspaceBar">
+    <div class="workspace-bar-group">
+        <div class="mode-switch" role="tablist" aria-label="Venue workspace modes">
+            <button type="button" class="mode-pill active" aria-selected="true">1. Site Plan</button>
+            <a th:href="@{/events/{id}/venue(id=${event.id}, mode='zones')}" class="mode-pill">2. Zones &amp; Grid</a>
+            <a th:href="@{/events/{id}/venue(id=${event.id}, mode='infrastructure')}" class="mode-pill">3. Infrastructure</a>
+            <a th:href="@{/events/{id}/venue(id=${event.id}, mode='pathways')}" class="mode-pill">4. Pathways</a>
+        </div>
+
+        <button type="button" id="undoBtn" class="btn btn-secondary btn-sm" title="Undo (Ctrl+Z)" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>
+            </svg>
+        </button>
+        <button type="button" id="redoBtn" class="btn btn-secondary btn-sm" title="Redo (Ctrl+Y)" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>
+            </svg>
+        </button>
+    </div>
+
+    <div class="workspace-bar-group">
+        <span id="scaleStatusPill" class="scale-pill mono">Scale: 1.00 m Grid</span>
+        <button type="button" id="toggleInspectorBtn" class="btn btn-ghost btn-sm">Inspector</button>
+        <button th:if="${canEdit}" type="button" id="saveWorkspaceBtn" class="btn btn-primary btn-sm">Save</button>
+        <span th:unless="${canEdit}" class="badge badge-neutral">Reviewer Read-Only</span>
+    </div>
+</th:block>
+
+<th:block th:fragment="toolRail">
+    <button type="button" class="tool-rail-btn active" data-tool="SELECT" title="Select / Pan / Drag Vertices">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M3 3l7 17 2.5-6.5L19 11 3 3z"/>
+        </svg>
+    </button>
+    <button type="button" class="tool-rail-btn" data-tool="DRAW_BOUNDARY" title="Draw Outer Venue Boundary"
+            th:disabled="${!canEdit}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <polygon points="5,4 19,6 20,19 4,18"/>
+        </svg>
+    </button>
+    <button type="button" class="tool-rail-btn" data-tool="DRAW_EXCLUSION" title="Draw Exclusion / Corridor Polygon"
+            th:disabled="${!canEdit}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <rect x="4" y="4" width="16" height="16" rx="1"/>
+            <line x1="4" y1="20" x2="20" y2="4"/>
+        </svg>
+    </button>
+
+    <div class="tool-rail-sep"></div>
+
+    <button type="button" class="tool-rail-btn" data-tool="CALIBRATE_PRIMARY" title="Primary Scale Calibration Line (Blueprint)"
+            th:disabled="${!canEdit}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 6H3v12h18V6z"/><path d="M7 6v4M12 6v6M17 6v4"/>
+        </svg>
+    </button>
+    <button type="button" class="tool-rail-btn" data-tool="CALIBRATE_VERIFY" title="Verification Scale Line (Check Distortion)"
+            th:disabled="${!canEdit}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M20 6L9 17l-5-5"/>
+        </svg>
+    </button>
+
+    <div class="tool-rail-sep"></div>
+
+    <button type="button" id="snapToggleBtn" class="tool-rail-btn active" title="Toggle 1.0 m Grid Snap"
+            th:disabled="${!canEdit}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>
+        </svg>
+    </button>
+</th:block>
+
+<th:block th:fragment="canvasArea">
+    <div id="venueWorkspaceRoot"
+         style="position: relative; width: 100%; height: 100%;"
+         th:attr="data-event-id=${event.id},data-can-edit=${canEdit},data-initial-state=${initialStateJson}">
+        <canvas id="venueCanvas" aria-label="Interactive venue site plan canvas"></canvas>
+
+        <div id="canvasHintBar" class="canvas-hint-bar" style="display: none;">
+            <span id="canvasHintText">Click vertices on canvas.</span>
+        </div>
+
+        <div id="canvasEmptyOverlay" class="canvas-empty-overlay" style="display: none;">
+            <div class="canvas-empty-card">
+                <p id="canvasEmptyText" class="text-secondary" style="font-size: 13px;">
+                    No boundary drawn yet — trace the venue outline to begin.
+                </p>
+            </div>
+        </div>
+
+        <div class="zoom-controls" aria-label="Canvas zoom controls">
+            <button type="button" id="zoomOutBtn" class="btn btn-ghost btn-sm" title="Zoom Out">-</button>
+            <button type="button" id="zoom100Btn" class="btn btn-ghost btn-sm mono" title="Reset Zoom">100%</button>
+            <button type="button" id="zoomInBtn" class="btn btn-ghost btn-sm" title="Zoom In">+</button>
+            <button type="button" id="zoomFitBtn" class="btn btn-ghost btn-sm" title="Fit Site Plan">Fit</button>
+        </div>
+
+        <div class="canvas-legend">
+            <div class="legend-header">
+                <strong>Site Plan Legend</strong>
+                <button type="button" id="legendToggleBtn" class="legend-toggle-btn">Hide</button>
+            </div>
+            <div id="legendList" class="legend-list">
+                <div class="legend-item">
+                    <span class="legend-swatch" style="background: rgba(37, 99, 235, 0.16); border-color: #2563EB;"></span>
+                    <span>Outer Venue Boundary</span>
+                </div>
+                <div class="legend-item" th:each="exType : ${exclusionTypes}">
+                    <span class="legend-swatch"
+                          th:style="'background:' + ${exType.fillColor} + '; border-color:' + ${exType.strokeColor}"></span>
+                    <span th:text="${exType.displayName}">Category</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="module" th:src="@{/js/venue-editor.js}"></script>
+</th:block>
+
+<th:block th:fragment="inspectorBody">
+    <div class="inspector-tabs" role="tablist">
+        <button type="button" class="inspector-tab active" data-tab="properties">Properties</button>
+        <button type="button" class="inspector-tab" data-tab="summary">Summary</button>
+        <button type="button" class="inspector-tab" data-tab="findings">
+            Findings <span id="findingsCountBadge" class="badge badge-neutral" style="margin-left: 4px;"
+                           th:text="${#lists.size(initialState.findings)}">0</span>
+        </button>
+    </div>
+
+    <div class="inspector-body">
+        <!-- Tab 1: Properties -->
+        <div class="inspector-pane active" data-pane="properties">
+            <div class="inspector-section">
+                <div class="inspector-section-title">Site Setup Mode</div>
+                <div class="mode-radio-grid">
+                    <button type="button" id="modeInteractiveBtn" class="mode-choice-btn active" th:disabled="${!canEdit}">
+                        Interactive Map
+                    </button>
+                    <button type="button" id="modeBlueprintBtn" class="mode-choice-btn" th:disabled="${!canEdit}">
+                        Blueprint / Photo
+                    </button>
+                </div>
+            </div>
+
+            <!-- Interactive Map Controls -->
+            <div id="interactiveMapSection" class="inspector-section">
+                <div class="inspector-section-title">Offline Vector Map</div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="sampleMapSelect">Built-In Base Map</label>
+                    <select id="sampleMapSelect" class="form-control" th:disabled="${!canEdit}">
+                        <option th:each="m : ${sampleMaps}"
+                                th:value="${m.key}"
+                                th:text="${m.name}"
+                                th:selected="${initialState.venuePlan.sampleMapKey == m.key}">Campus Quadrangle</option>
+                    </select>
+                </div>
+                <div class="form-actions" style="margin-top: 0;" th:if="${canEdit}">
+                    <button type="button" id="loadSampleMapBtn" class="btn btn-secondary btn-sm">Load Map</button>
+                    <button type="button" id="useMapPerimeterBtn" class="btn btn-secondary btn-sm">Use Map Perimeter</button>
+                </div>
+
+                <details class="details-panel" th:if="${canEdit}">
+                    <summary>Import GeoJSON or SVG Vector Plan</summary>
+                    <div class="form-group">
+                        <label class="form-label" for="vectorMapFileInput">Vector File (.geojson, .json, .svg)</label>
+                        <input id="vectorMapFileInput" type="file" accept=".geojson,.json,.svg" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="vectorTargetWidth">SVG Site Width (m)</label>
+                        <input id="vectorTargetWidth" type="number" step="0.5" min="5" value="100" class="form-control mono">
+                    </div>
+                    <button type="button" id="uploadVectorBtn" class="btn btn-secondary btn-sm">Import Vector Map</button>
+                </details>
+            </div>
+
+            <!-- Blueprint & 2-Step Scale Calibration Controls -->
+            <div id="blueprintUploadSection" class="inspector-section" style="display: none;">
+                <div class="inspector-section-title">Blueprint &amp; Scale Calibration</div>
+                <div id="blueprintFileMeta" class="text-secondary" style="font-size: 12px;">No blueprint uploaded yet</div>
+
+                <div th:if="${canEdit}">
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label class="form-label" for="blueprintFileInput">Upload Site Image (PNG/JPG/WEBP/SVG)</label>
+                        <input id="blueprintFileInput" type="file" accept=".png,.jpg,.jpeg,.webp,.svg" class="form-control">
+                    </div>
+                    <button type="button" id="uploadBlueprintBtn" class="btn btn-secondary btn-sm">Upload Blueprint</button>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="blueprintOpacityInput">Base Layer Opacity</label>
+                    <input id="blueprintOpacityInput" type="range" min="20" max="100" value="85">
+                </div>
+
+                <div style="border-top: 1px solid var(--border); padding-top: 8px;">
+                    <div style="font-size: 12px; font-weight: 600; margin-bottom: 6px;">Step 1: Primary Calibration Line</div>
+                    <input type="hidden" id="calPrimaryX1">
+                    <input type="hidden" id="calPrimaryY1">
+                    <input type="hidden" id="calPrimaryX2">
+                    <input type="hidden" id="calPrimaryY2">
+                    <div style="display: flex; gap: 6px; align-items: center; margin-bottom: 6px;">
+                        <button th:if="${canEdit}" type="button" id="pickPrimaryCalBtn" class="btn btn-secondary btn-sm">
+                            Pick Primary Line
+                        </button>
+                        <input id="calPrimaryDist" type="number" step="0.1" min="0.1" placeholder="Known m"
+                               class="form-control mono" style="max-width: 110px;" th:disabled="${!canEdit}">
+                    </div>
+                    <div id="calPrimaryReadout" class="mono text-muted" style="font-size: 11px;">Not drawn yet</div>
+                </div>
+
+                <div style="border-top: 1px solid var(--border); padding-top: 8px;">
+                    <div style="font-size: 12px; font-weight: 600; margin-bottom: 6px;">Step 2: Verification Line (Cross-Axis)</div>
+                    <input type="hidden" id="calVerifyX1">
+                    <input type="hidden" id="calVerifyY1">
+                    <input type="hidden" id="calVerifyX2">
+                    <input type="hidden" id="calVerifyY2">
+                    <div style="display: flex; gap: 6px; align-items: center; margin-bottom: 6px;">
+                        <button th:if="${canEdit}" type="button" id="pickVerifyCalBtn" class="btn btn-secondary btn-sm">
+                            Pick Verify Line
+                        </button>
+                        <input id="calVerifyDist" type="number" step="0.1" min="0.1" placeholder="Verify m"
+                               class="form-control mono" style="max-width: 110px;" th:disabled="${!canEdit}">
+                    </div>
+                    <div id="calVerifyReadout" class="mono text-muted" style="font-size: 11px;">Optional cross-axis check</div>
+                </div>
+
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 4px;">
+                    <input type="checkbox" id="calOrthoConfirmed" th:disabled="${!canEdit}">
+                    <span>Confirm image is top-down / orthographic</span>
+                </label>
+
+                <button th:if="${canEdit}" type="button" id="applyCalibrationBtn" class="btn btn-primary btn-sm">
+                    Apply Scale Calibration
+                </button>
+                <div id="calibrationAuditBanner"></div>
+            </div>
+
+            <!-- Boundary & Exclusion Drawing Properties -->
+            <div class="inspector-section" th:if="${canEdit}">
+                <div class="inspector-section-title">New Exclusion / Corridor Polygon</div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="newExclusionType">Category</label>
+                    <select id="newExclusionType" class="form-control">
+                        <option th:each="exType : ${exclusionTypes}"
+                                th:value="${exType.name()}"
+                                th:text="${exType.displayName}">Building</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="newExclusionLabel">Label (optional)</label>
+                    <input id="newExclusionLabel" type="text" class="form-control" placeholder="e.g., Main Stage Deck">
+                </div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="newExclusionNotes">Notes (optional)</label>
+                    <input id="newExclusionNotes" type="text" class="form-control" placeholder="Access / structure note">
+                </div>
+                <div class="form-actions" style="margin-top: 2px;">
+                    <button type="button" id="clearBoundaryBtn" class="btn btn-ghost btn-sm">Clear Boundary</button>
+                </div>
+            </div>
+
+            <!-- Selected Exclusion Editor -->
+            <div id="selectedPolygonSection" class="inspector-section" style="display: none;">
+                <div class="inspector-section-title">Selected Exclusion</div>
+                <div class="mono text-secondary" style="font-size: 12px;">
+                    Clipped Area: <strong id="selectedExclArea">0.00 m²</strong>
+                </div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="selectedExclLabel">Label</label>
+                    <input id="selectedExclLabel" type="text" class="form-control" th:disabled="${!canEdit}">
+                </div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="selectedExclType">Category</label>
+                    <select id="selectedExclType" class="form-control" th:disabled="${!canEdit}">
+                        <option th:each="exType : ${exclusionTypes}"
+                                th:value="${exType.name()}"
+                                th:text="${exType.displayName}">Building</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="selectedExclNotes">Notes</label>
+                    <input id="selectedExclNotes" type="text" class="form-control" th:disabled="${!canEdit}">
+                </div>
+                <div class="form-actions" style="margin-top: 2px;" th:if="${canEdit}">
+                    <button type="button" id="updateSelectedExclBtn" class="btn btn-secondary btn-sm">Update</button>
+                    <button type="button" id="deleteSelectedExclBtn" class="btn btn-danger btn-sm">Delete</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: Summary (Real-World Space Breakdown) -->
+        <div class="inspector-pane" data-pane="summary">
+            <div class="inspector-section">
+                <div class="inspector-section-title">Space &amp; Usable Area Breakdown</div>
+                <div class="breakdown-bar-track" aria-label="Space allocation bar">
+                    <div id="segUsable" class="breakdown-seg-usable" style="width: 0%;"></div>
+                    <div id="segCorridor" class="breakdown-seg-corridor" style="width: 0%;"></div>
+                    <div id="segRestricted" class="breakdown-seg-restricted" style="width: 0%;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 11px;" class="text-secondary">
+                    <span id="sumUsablePct" class="mono">Draw boundary</span>
+                    <span id="sumPerimeter" class="mono">—</span>
+                </div>
+
+                <table class="data-table compact-table">
+                    <thead>
+                        <tr>
+                            <th>Space Category</th>
+                            <th class="num">Area</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Gross Site Area</td>
+                            <td id="sumGrossArea" class="num mono"
+                                th:text="${#numbers.formatDecimal(initialState.areaBreakdown.grossAreaSqm, 1, 2) + ' m²'}">0.00 m²</td>
+                        </tr>
+                        <tr>
+                            <td>Restricted / Structures</td>
+                            <td id="sumRestrictedArea" class="num mono"
+                                th:text="${#numbers.formatDecimal(initialState.areaBreakdown.restrictedAreaSqm, 1, 2) + ' m²'}">0.00 m²</td>
+                        </tr>
+                        <tr>
+                            <td>Reserved Corridors</td>
+                            <td id="sumCorridorsArea" class="num mono"
+                                th:text="${#numbers.formatDecimal(initialState.areaBreakdown.corridorsAreaSqm, 1, 2) + ' m²'}">0.00 m²</td>
+                        </tr>
+                        <tr>
+                            <td>Excluded Total (Union)</td>
+                            <td id="sumExcludedTotal" class="num mono"
+                                th:text="${#numbers.formatDecimal(initialState.areaBreakdown.excludedTotalAreaSqm, 1, 2) + ' m²'}">0.00 m²</td>
+                        </tr>
+                        <tr style="font-weight: 700;">
+                            <td>Net Usable Gathering Area</td>
+                            <td id="sumUsableArea" class="num mono"
+                                th:text="${#numbers.formatDecimal(initialState.areaBreakdown.usableAreaSqm, 1, 2) + ' m²'}">0.00 m²</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div id="overlapDedupNotice" class="banner banner-info" style="display: none; font-size: 11px;"></div>
+            </div>
+
+            <div class="inspector-section">
+                <div class="inspector-section-title">Drawn Exclusions</div>
+                <div id="exclusionsList" style="display: flex; flex-direction: column; gap: 6px;"></div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Findings -->
+        <div class="inspector-pane" data-pane="findings">
+            <div class="banner banner-info" style="font-size: 12px;">
+                Automated measurement checks support planning review; they do not constitute safety certification.
+            </div>
+            <div id="findingsList" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        </div>
+    </div>
+</th:block>
+
+<th:block th:fragment="statusStrip">
+    <div class="status-group">
+        <span id="cursorCoordsReadout" class="mono">X: 0.0 m, Y: 0.0 m</span>
+        <span id="statusLayerText">Site Plan · Interactive Map</span>
+        <span id="workspaceMessage" class="text-secondary"></span>
+    </div>
+    <div class="status-group">
+        <button type="button" class="btn btn-ghost btn-sm" data-assistant-toggle="true" title="Open Planning Assistant Drawer">
+            Planning Assistant
+        </button>
+    </div>
+</th:block>
+
+</body>
+</html>

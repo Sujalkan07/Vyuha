@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/workspace-shell :: head(${event.name} + ' — Pathways')}"></head>
+<body th:replace="~{fragments/workspace-shell :: workspace(${event.name} + ' — Pathways', 'events', ${event.id}, 'venue', ~{::workspaceBar}, ~{::toolRail}, ~{::canvasArea}, ~{::inspectorBody}, ~{::statusStrip})}">
+
+<th:block th:fragment="workspaceBar">
+    <div class="workspace-bar-group">
+        <div class="mode-switch" role="tablist" aria-label="Venue workspace modes">
+            <a th:href="@{/events/{id}/venue(id=${event.id}, mode='site')}" class="mode-pill">1. Site Plan</a>
+            <a th:href="@{/events/{id}/venue(id=${event.id}, mode='zones')}" class="mode-pill">2. Zones &amp; Grid</a>
+            <a th:href="@{/events/{id}/venue(id=${event.id}, mode='infrastructure')}" class="mode-pill">3. Infrastructure</a>
+            <button type="button" class="mode-pill active" aria-selected="true">4. Pathways</button>
+        </div>
+
+        <button type="button" id="undoBtn" class="btn btn-secondary btn-sm" title="Undo (Ctrl+Z)" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>
+            </svg>
+        </button>
+        <button type="button" id="redoBtn" class="btn btn-secondary btn-sm" title="Redo (Ctrl+Y)" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>
+            </svg>
+        </button>
+    </div>
+
+    <div class="workspace-bar-group">
+        <span id="networkStatusPill" class="scale-pill mono"
+              th:text="${initialState.summary.totalNodes} + ' nodes · ' + ${initialState.summary.activeEdges} + ' edges · ' + ${#lists.size(initialState.activeFindings)} + ' findings'">
+            0 nodes · 0 edges · 0 findings
+        </span>
+        <button type="button" id="runScreenBtn" class="btn btn-secondary btn-sm" title="Re-run automated bottleneck screening">
+            Run Screen
+        </button>
+        <button type="button" id="toggleInspectorBtn" class="btn btn-ghost btn-sm">Inspector</button>
+        <button th:if="${canEdit}" type="button" id="saveNetworkBtn" class="btn btn-primary btn-sm">Save</button>
+        <span th:unless="${canEdit}" class="badge badge-neutral">Reviewer Read-Only</span>
+    </div>
+</th:block>
+
+<th:block th:fragment="toolRail">
+    <button type="button" class="tool-rail-btn active" data-tool="SELECT" title="Select / Pan / Move Node">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M3 3l7 17 2.5-6.5L19 11 3 3z"/>
+        </svg>
+    </button>
+    <button type="button" class="tool-rail-btn" data-tool="ADD_NODE" title="Add Pathway Node" th:disabled="${!canEdit}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="6"/><path d="M12 9v6M9 12h6"/>
+        </svg>
+    </button>
+    <button type="button" class="tool-rail-btn" data-tool="DRAW_EDGE" title="Connect Nodes with Pathway Edge" th:disabled="${!canEdit}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="5" cy="18" r="2.5"/><circle cx="19" cy="6" r="2.5"/><path d="M7 16.5L17 7.5"/>
+        </svg>
+    </button>
+
+    <div class="tool-rail-sep"></div>
+
+    <button type="button" id="autoSeedRailBtn" class="tool-rail-btn" title="Auto-Seed Nodes from Zones &amp; Gates" th:disabled="${!canEdit}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/>
+            <path d="M8.5 6h7M7.2 8.2L10.8 15.8M16.8 8.2L13.2 15.8"/>
+        </svg>
+    </button>
+
+    <div class="tool-rail-sep"></div>
+
+    <button type="button" id="snapToggleBtn" class="tool-rail-btn active" title="Toggle Metric Grid Snap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>
+        </svg>
+    </button>
+    <button type="button" id="ribbonToggleBtn" class="tool-rail-btn active" title="Toggle Proportional Width Ribbons">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M4 8h16M4 16h16"/><path d="M6 12h12" stroke-dasharray="3 2"/>
+        </svg>
+    </button>
+</th:block>
+
+<th:block th:fragment="canvasArea">
+    <div id="networkWorkspaceRoot"
+         style="position: relative; width: 100%; height: 100%;"
+         th:attr="data-event-id=${event.id},data-can-edit=${canEdit},data-can-review=${canReviewFindings},data-initial-state=${initialStateJson}">
+        <canvas id="networkCanvas" aria-label="Interactive pedestrian pathway network canvas"></canvas>
+
+        <div class="layer-toggle-bar" role="group" aria-label="Movement layer visibility">
+            <button type="button" th:each="layer : ${networkLayers}"
+                    class="layer-pill active"
+                    th:attr="data-layer=${layer.name()}"
+                    th:title="${layer.displayName}">
+                <span class="layer-dot" th:style="'background:' + ${layer.colorHex}"></span>
+                <span th:text="${layer.shortLabel}">Entry</span>
+            </button>
+        </div>
+
+        <div id="canvasHintBar" class="canvas-hint-bar" style="display: none;">
+            <span id="canvasHintText">Click canvas to place pathway node.</span>
+        </div>
+
+        <div class="zoom-controls" aria-label="Canvas zoom controls">
+            <button type="button" id="zoomOutBtn" class="btn btn-ghost btn-sm" title="Zoom Out">-</button>
+            <button type="button" id="zoom100Btn" class="btn btn-ghost btn-sm mono" title="Reset Zoom">100%</button>
+            <button type="button" id="zoomInBtn" class="btn btn-ghost btn-sm" title="Zoom In">+</button>
+            <button type="button" id="zoomFitBtn" class="btn btn-ghost btn-sm" title="Fit Site Plan">Fit</button>
+        </div>
+
+        <div class="canvas-legend">
+            <div class="legend-header">
+                <strong>Pathway Layers &amp; Findings</strong>
+                <button type="button" id="legendToggleBtn" class="legend-toggle-btn">Hide</button>
+            </div>
+            <div id="legendList" class="legend-list">
+                <div class="legend-item" th:each="layer : ${networkLayers}">
+                    <span class="legend-swatch" th:style="'background:' + ${layer.colorHex} + '; border-color:' + ${layer.colorHex}"></span>
+                    <span th:text="${layer.displayName}">Normal Entry</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-swatch" style="background: rgba(185, 28, 28, 0.2); border-color: #B91C1C;"></span>
+                    <span>Critical Bottleneck</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-swatch" style="background: rgba(194, 65, 12, 0.2); border-color: #C2410C;"></span>
+                    <span>High Bottleneck</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="module" th:src="@{/js/network-editor.js}"></script>
+</th:block>
+
+<th:block th:fragment="inspectorBody">
+    <div class="inspector-tabs" role="tablist">
+        <button type="button" class="inspector-tab active" data-tab="properties">Properties</button>
+        <button type="button" class="inspector-tab" data-tab="summary">Summary</button>
+        <button type="button" class="inspector-tab" data-tab="findings">
+            Findings <span id="findingsCountBadge" class="badge badge-neutral" style="margin-left: 4px;"
+                           th:text="${#lists.size(initialState.activeFindings)}">0</span>
+        </button>
+    </div>
+
+    <div class="inspector-body">
+        <!-- Tab 1: Properties -->
+        <div class="inspector-pane active" data-pane="properties">
+            <div class="inspector-section" th:if="${canEdit}">
+                <div class="inspector-section-title">Node &amp; Layout Seeding</div>
+                <button type="button" id="autoSeedBtn" class="btn btn-secondary btn-sm">Auto-Seed Nodes from Layout</button>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="addNodeTypeSelect">New Node Type</label>
+                    <select id="addNodeTypeSelect" class="form-control">
+                        <option th:each="nType : ${nodeTypes}"
+                                th:value="${nType.name()}"
+                                th:text="${nType.displayName}">Walkway Intersection</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="addNodeLabelInput">Node Label (optional)</label>
+                    <input id="addNodeLabelInput" type="text" maxlength="160" class="form-control" placeholder="Auto-numbered if blank">
+                </div>
+                <div class="form-grid-2">
+                    <div class="form-group" style="margin-bottom: 4px;">
+                        <label class="form-label" for="addNodeZoneSelect">Link Zone</label>
+                        <select id="addNodeZoneSelect" class="form-control">
+                            <option value="">None</option>
+                            <option th:each="z : ${initialState.zones}"
+                                    th:value="${z.id}"
+                                    th:text="${z.zoneCode + ' · ' + z.name}">AUD-1</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 4px;">
+                        <label class="form-label" for="addNodeInfraSelect">Link Infra</label>
+                        <select id="addNodeInfraSelect" class="form-control">
+                            <option value="">None</option>
+                            <option th:each="el : ${initialState.elements}"
+                                    th:value="${el.id}"
+                                    th:text="${el.label}">Gate</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-actions" style="margin-top: 2px;">
+                    <button type="button" id="addNodeToolBtn" class="btn btn-secondary btn-sm">Click Canvas to Add Node</button>
+                </div>
+            </div>
+
+            <div class="inspector-section" th:if="${canEdit}">
+                <div class="inspector-section-title">Draw Pathway Edge</div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="drawLayerSelect">Movement Layer</label>
+                    <select id="drawLayerSelect" class="form-control">
+                        <option th:each="layer : ${networkLayers}"
+                                th:value="${layer.name()}"
+                                th:text="${layer.displayName}"
+                                th:attr="data-default-width=${layer.defaultWidthM}">Normal Entry</option>
+                    </select>
+                </div>
+                <div class="form-grid-2">
+                    <div class="form-group" style="margin-bottom: 4px;">
+                        <label class="form-label" for="drawWidthInput">Width (m)</label>
+                        <input id="drawWidthInput" type="number" step="0.1" min="0.3" max="100" value="3.5" class="form-control mono">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 4px;">
+                        <label class="form-label" for="drawDirectionSelect">Direction</label>
+                        <select id="drawDirectionSelect" class="form-control">
+                            <option th:each="dir : ${directions}"
+                                    th:value="${dir.name()}"
+                                    th:text="${dir.displayName}">Bidirectional</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-actions" style="margin-top: 2px;">
+                    <button type="button" id="drawEdgeToolBtn" class="btn btn-primary btn-sm">Connect Nodes on Canvas</button>
+                </div>
+            </div>
+
+            <!-- Selected Node Inspector -->
+            <div id="selectedNodeSection" class="inspector-section" style="display: none;">
+                <div class="inspector-section-title">Selected Node</div>
+                <div id="selNodeMeta" class="mono text-secondary" style="font-size: 11px;">—</div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="selNodeTypeSelect">Node Type</label>
+                    <select id="selNodeTypeSelect" class="form-control" th:disabled="${!canEdit}">
+                        <option th:each="nType : ${nodeTypes}"
+                                th:value="${nType.name()}"
+                                th:text="${nType.displayName}">Intersection</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="selNodeLabelInput">Label</label>
+                    <input id="selNodeLabelInput" type="text" maxlength="160" class="form-control" th:disabled="${!canEdit}">
+                </div>
+                <div class="form-grid-2">
+                    <div class="form-group" style="margin-bottom: 4px;">
+                        <label class="form-label" for="selNodeXInput">X (m)</label>
+                        <input id="selNodeXInput" type="number" step="0.5" class="form-control mono" th:disabled="${!canEdit}">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 4px;">
+                        <label class="form-label" for="selNodeYInput">Y (m)</label>
+                        <input id="selNodeYInput" type="number" step="0.5" class="form-control mono" th:disabled="${!canEdit}">
+                    </div>
+                </div>
+                <div class="form-grid-2">
+                    <div class="form-group" style="margin-bottom: 4px;">
+                        <label class="form-label" for="selNodeZoneSelect">Linked Zone</label>
+                        <select id="selNodeZoneSelect" class="form-control" th:disabled="${!canEdit}">
+                            <option value="">None</option>
+                            <option th:each="z : ${initialState.zones}"
+                                    th:value="${z.id}"
+                                    th:text="${z.zoneCode + ' · ' + z.name}">AUD-1</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 4px;">
+                        <label class="form-label" for="selNodeInfraSelect">Linked Infra</label>
+                        <select id="selNodeInfraSelect" class="form-control" th:disabled="${!canEdit}">
+                            <option value="">None</option>
+                            <option th:each="el : ${initialState.elements}"
+                                    th:value="${el.id}"
+                                    th:text="${el.label}">Gate</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="selNodeNotesInput">Notes</label>
+                    <input id="selNodeNotesInput" type="text" maxlength="500" class="form-control" th:disabled="${!canEdit}">
+                </div>
+                <div class="form-actions" style="margin-top: 2px;" th:if="${canEdit}">
+                    <button type="button" id="applyNodeBtn" class="btn btn-primary btn-sm">Apply</button>
+                    <button type="button" id="deleteNodeBtn" class="btn btn-danger btn-sm">Delete</button>
+                </div>
+            </div>
+
+            <!-- Selected Edge Inspector -->
+            <div id="selectedEdgeSection" class="inspector-section" style="display: none;">
+                <div class="inspector-section-title">Selected Pathway Edge</div>
+                <div id="selEdgeMeta" class="mono text-secondary" style="font-size: 11px;">—</div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="selEdgeLabelInput">Label</label>
+                    <input id="selEdgeLabelInput" type="text" maxlength="160" class="form-control" th:disabled="${!canEdit}">
+                </div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="selEdgeLayerSelect">Movement Layer</label>
+                    <select id="selEdgeLayerSelect" class="form-control" th:disabled="${!canEdit}">
+                        <option th:each="layer : ${networkLayers}"
+                                th:value="${layer.name()}"
+                                th:text="${layer.displayName}">Normal Entry</option>
+                    </select>
+                </div>
+                <div class="form-grid-2">
+                    <div class="form-group" style="margin-bottom: 4px;">
+                        <label class="form-label" for="selEdgeWidthInput">Width (m)</label>
+                        <input id="selEdgeWidthInput" type="number" step="0.1" min="0.3" max="100" class="form-control mono" th:disabled="${!canEdit}">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 4px;">
+                        <label class="form-label" for="selEdgeDirectionSelect">Direction</label>
+                        <select id="selEdgeDirectionSelect" class="form-control" th:disabled="${!canEdit}">
+                            <option th:each="dir : ${directions}"
+                                    th:value="${dir.name()}"
+                                    th:text="${dir.displayName}">Bidirectional</option>
+                        </select>
+                    </div>
+                </div>
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px;">
+                    <input type="checkbox" id="selEdgeActiveCheckbox" th:disabled="${!canEdit}">
+                    <span>Edge active in network</span>
+                </label>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="selEdgeNotesInput">Notes</label>
+                    <input id="selEdgeNotesInput" type="text" maxlength="500" class="form-control" th:disabled="${!canEdit}">
+                </div>
+                <div class="form-actions" style="margin-top: 2px;" th:if="${canEdit}">
+                    <button type="button" id="applyEdgeBtn" class="btn btn-primary btn-sm">Apply</button>
+                    <button type="button" id="reverseEdgeBtn" class="btn btn-secondary btn-sm">Reverse</button>
+                    <button type="button" id="deleteEdgeBtn" class="btn btn-danger btn-sm">Delete</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: Summary -->
+        <div class="inspector-pane" data-pane="summary">
+            <div class="inspector-section">
+                <div class="inspector-section-title">Movement Network Summary</div>
+                <table class="data-table compact-table">
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th class="num">Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Nodes / Active Edges</td>
+                            <td id="sumNodesEdges" class="num mono">0 / 0</td>
+                        </tr>
+                        <tr>
+                            <td>Total Active Length</td>
+                            <td id="sumTotalLength" class="num mono">0.0 m</td>
+                        </tr>
+                        <tr>
+                            <td>Connected Components</td>
+                            <td id="sumComponents" class="num mono">0</td>
+                        </tr>
+                        <tr>
+                            <td>Layers (En / Cir / Ex / Em)</td>
+                            <td id="sumLayerCounts" class="num mono">0 / 0 / 0 / 0</td>
+                        </tr>
+                        <tr>
+                            <td>Entry Supply vs Demand</td>
+                            <td id="sumGateBalance" class="num mono">0 vs 0 p/m</td>
+                        </tr>
+                        <tr>
+                            <td>Bottlenecks (C / H / L)</td>
+                            <td id="sumFindingsCounts" class="num mono">0 / 0 / 0</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="inspector-section">
+                <div class="inspector-section-title">Pathway Edges (<span id="edgesCountLabel" class="mono">0</span>)</div>
+                <div id="edgesList" style="display: flex; flex-direction: column; gap: 6px;"></div>
+            </div>
+
+            <div class="inspector-section">
+                <div class="inspector-section-title">Pathway Nodes (<span id="nodesCountLabel" class="mono">0</span>)</div>
+                <div id="nodesList" style="display: flex; flex-direction: column; gap: 6px;"></div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Findings -->
+        <div class="inspector-pane" data-pane="findings">
+            <div class="banner banner-info" style="font-size: 12px;">
+                <strong>Layout Screening Warning vs. Professional Safety Verdict:</strong> Automated bottleneck checks flag measurable network risks; human professional safety review is required and never constitutes safety certification.
+            </div>
+
+            <div id="activeFindingsList" style="display: flex; flex-direction: column; gap: 8px;"></div>
+
+            <details id="historyFindingsPanel" class="details-panel" style="display: none;">
+                <summary>Resolved Review History (<span id="historyFindingsCount" class="mono">0</span>)</summary>
+                <div id="historyFindingsList" style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;"></div>
+            </details>
+        </div>
+    </div>
+</th:block>
+
+<th:block th:fragment="statusStrip">
+    <div class="status-group">
+        <span id="cursorCoordsReadout" class="mono">X: 0.0 m, Y: 0.0 m</span>
+        <span id="statusLayerText">Pathways · SELECT</span>
+        <span id="workspaceMessage" class="text-secondary"></span>
+    </div>
+    <div class="status-group">
+        <button type="button" class="btn btn-ghost btn-sm" data-assistant-toggle="true" title="Open Planning Assistant Drawer">
+            Planning Assistant
+        </button>
+    </div>
+</th:block>
+
+</body>
+</html>

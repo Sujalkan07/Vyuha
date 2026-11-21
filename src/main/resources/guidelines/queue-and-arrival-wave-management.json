@@ -1,0 +1,55 @@
+{
+  "documentId": "QUEUE-OPS",
+  "documentTitle": "Arrival Wave Scheduling, Gate Throughput & Queue Holding Principles",
+  "authority": "Vyuha Compiled Event Operations Guidance",
+  "publicationYear": 2024,
+  "category": "QUEUE_MANAGEMENT",
+  "categoryDisplayName": "Arrival Waves & Queues",
+  "sections": [
+    {
+      "sectionId": "QUEUE-OPS-S1.1",
+      "sectionNumber": "Section 1.1",
+      "sectionTitle": "Balancing Gate Processing Rates Against Peak Arrival Waves",
+      "topics": ["arrival wave", "gate", "throughput", "overload", "entry", "rush", "surge"],
+      "applicableCodes": ["ENTRY_GATE_OVERLOAD", "ARRIVAL_RUSH", "CAPACITY_FLOW"],
+      "summary": "When peak arrival rates exceed combined entry gate and security checkpoint throughput, residual queues accumulate exponentially across consecutive intervals unless waves are staggered or gates added.",
+      "verbatimQuote": "If interval arrival demand exceeds aggregate gate and screening service rate, residual queue backlog compounds across subsequent intervals until either additional processing lanes open or arrival waves are staggered."
+    },
+    {
+      "sectionId": "QUEUE-OPS-S1.2",
+      "sectionNumber": "Section 1.2",
+      "sectionTitle": "Sizing Holding Areas & Detecting Spillback Deficit",
+      "topics": ["holding", "queue space", "spillback", "overflow", "deficit", "screening"],
+      "applicableCodes": ["CAPACITY_HOLDING", "HOLDING_OVERFLOW", "CROSSING_QUEUE_CONFLICT"],
+      "summary": "Compare cumulative peak queue length against reviewed holding-zone area capacity so overflow is mitigated before crowds back up onto public roadways or cross main exits.",
+      "verbatimQuote": "Designated security and entry holding zones must accommodate peak projected queue volume at reviewed queue densities; any holding-area deficit risks uncontrolled spillback onto external approaches."
+    },
+    {
+      "sectionId": "QUEUE-OPS-S1.3",
+      "sectionNumber": "Section 1.3",
+      "sectionTitle": "Security Checkpoint & Ticket Scan Funnel Staging",
+      "topics": ["checkpoint", "security", "ticket", "pass", "scan", "wait time"],
+      "applicableCodes": ["ENTRY_GATE_OVERLOAD", "ARRIVAL_RUSH"],
+      "summary": "Place ticket/pass verification upstream of high-density gathering zones with sufficient setback distance so queuing visitors remain in buffered lanes.",
+      "verbatimQuote": "Security screening and pass-verification lanes require adequate setback from gathering zones and multi-lane parallel fanning to prevent single-file choke delays."
+    },
+    {
+      "sectionId": "QUEUE-OPS-S1.4",
+      "sectionNumber": "Section 1.4",
+      "sectionTitle": "Stage Front-of-House & High-Affinity Crowd Compression",
+      "topics": ["stage", "crowding", "crush", "pit", "barrier", "audience"],
+      "applicableCodes": ["STAGE_CROWDING", "WATER_UTILITY_HAZARD"],
+      "summary": "Monitor high-affinity attraction zones near stages using secondary barrier pens, side relief aisles, and early staff interventions before local density escalates.",
+      "verbatimQuote": "High-affinity stage fronts require lateral relief exits, compartmentalized barrier pens for large audiences, and separation of wet utility points from stage electrical zones."
+    },
+    {
+      "sectionId": "QUEUE-OPS-S1.5",
+      "sectionNumber": "Section 1.5",
+      "sectionTitle": "Governing Capacity Constraint Discipline",
+      "topics": ["governing constraint", "preliminary capacity", "official limit", "expected attendance"],
+      "applicableCodes": ["CAPACITY_GOVERNING", "CAPACITY_SPACE", "CAPACITY_FLOW", "CAPACITY_HOLDING"],
+      "summary": "Event attendance ceilings are governed by the tightest constraint among usable standing space, ingress/egress flow, holding-buffer capacity, and statutory permit limits—never gross site area alone.",
+      "verbatimQuote": "Preliminary venue capacity is bounded by the tightest constraint among net standing space, gate ingress/egress flow, holding buffer capacity, and statutory permit caps, subject to documented human safety review."
+    }
+  ]
+}

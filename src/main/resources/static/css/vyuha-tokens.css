@@ -1,0 +1,43 @@
+:root {
+  /* Surfaces */
+  --bg-page: #F8FAFC;
+  --bg-surface: #FFFFFF;
+  --bg-subtle: #F1F5F9;
+  --bg-nav: #0F172A;
+
+  /* Borders */
+  --border: #E2E8F0;
+  --border-strong: #CBD5E1;
+
+  /* Text */
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #64748B;
+  --text-inverse: #FFFFFF;
+
+  /* Primary Action */
+  --accent: #2563EB;
+  --accent-hover: #1D4ED8;
+  --accent-soft: #EFF6FF;
+
+  /* Safety Severity & Review States (Strictly Reserved) */
+  --sev-info: #0284C7;       --sev-info-bg: #E0F2FE;
+  --sev-low: #B45309;        --sev-low-bg: #FEF3C7;
+  --sev-high: #C2410C;       --sev-high-bg: #FFEDD5;
+  --sev-critical: #B91C1C;   --sev-critical-bg: #FEE2E2;
+  --state-verified: #0F766E; --state-verified-bg: #CCFBF1;
+
+  /* Typography */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Spacing & Shape */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --radius: 6px;
+  --nav-height: 52px;
+  --max-width: 1200px;
+}

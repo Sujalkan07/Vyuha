@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Error')}"></head>
+<body th:replace="~{fragments/layout :: page('Error', '', null, null, ~{::section})}">
+<section class="stack">
+    <div class="card">
+        <div class="card-header">
+            <h1 class="page-title">
+                <span class="mono" th:text="${statusCode != null ? statusCode : 500}">500</span>
+                — <span th:text="${errorTitle != null ? errorTitle : 'Request Error'}">Request Error</span>
+            </h1>
+            <span class="badge badge-high">Error</span>
+        </div>
+        <div class="card-body stack">
+            <p class="text-secondary" th:text="${errorMessage != null ? errorMessage : 'An unexpected error occurred.'}">
+                An unexpected error occurred.
+            </p>
+            <ul th:if="${details != null and !#lists.isEmpty(details)}" class="text-secondary">
+                <li th:each="d : ${details}" th:text="${d}">Detail</li>
+            </ul>
+            <div>
+                <a th:href="@{/}" class="btn btn-primary">Return Home</a>
+            </div>
+        </div>
+    </div>
+</section>
+</body>
+</html>

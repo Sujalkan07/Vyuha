@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:fragment="head(pageTitle)">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" th:if="${_csrf != null}" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:if="${_csrf != null}" th:content="${_csrf.headerName}">
+    <title th:text="${pageTitle != null ? pageTitle + ' — Vyuha Field' : 'Vyuha Field'}">Vyuha Field</title>
+    <link rel="stylesheet" th:href="@{/css/vyuha-tokens.css}">
+    <link rel="stylesheet" th:href="@{/css/vyuha-base.css}">
+    <link rel="stylesheet" th:href="@{/css/vyuha-workspace.css}">
+    <link rel="stylesheet" th:href="@{/css/vyuha-print.css}">
+</head>
+
+<body th:fragment="fieldPage(pageTitle, content)">
+    <header class="field-navbar">
+        <a th:href="@{/field}" class="navbar-brand">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="3" width="7" height="7" rx="1"/>
+                <rect x="14" y="3" width="7" height="7" rx="1"/>
+                <rect x="3" y="14" width="7" height="7" rx="1"/>
+                <path d="M14 17.5h7M17.5 14v7"/>
+            </svg>
+            <span>VYUHA FIELD</span>
+        </a>
+        <div class="navbar-right" sec:authorize="isAuthenticated()">
+            <span class="role-pill" sec:authentication="principal.roleDisplayName">Field Staff</span>
+            <form th:action="@{/logout}" method="post" class="navbar-signout-form">
+                <button type="submit" class="btn-nav-signout">Sign Out</button>
+            </form>
+        </div>
+    </header>
+    <div th:replace="~{fragments/safety-banner :: safetyBanner}"></div>
+    <main class="field-container">
+        <div th:replace="${content}"></div>
+    </main>
+</body>
+</html>

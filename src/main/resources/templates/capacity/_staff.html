@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<body>
+<div th:fragment="staffTab" class="stack">
+    <!-- Top KPI Row (max 4 cards per design.md) -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-label">Registered Staff Roster</div>
+            <div class="kpi-value" th:text="${ops.staffCoverage.totalStaffCount}">0</div>
+            <div class="kpi-sub mono"
+                 th:text="${'SEC ' + ops.staffCoverage.securityCount + ' · VOL ' + ops.staffCoverage.volunteerCount + ' · MED ' + ops.staffCoverage.medicalCount + ' · SUP ' + ops.staffCoverage.supervisorCount}">
+                SEC 0 · VOL 0 · MED 0 · SUP 0
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Scheduled Shift Posts</div>
+            <div class="kpi-value" th:text="${ops.staffCoverage.assignmentCount}">0</div>
+            <div class="kpi-sub mono"
+                 th:text="${ops.staffCoverage.uniqueAssignedStaffCount + ' unique staff assigned' + (ops.staffCoverage.requiredAttendeeRatioStaff > 0 ? ' (ratio target ' + ops.staffCoverage.requiredAttendeeRatioStaff + ')' : '')}">
+                0 unique staff assigned
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Coverage Findings</div>
+            <div class="kpi-value" th:text="${ops.staffCoverage.totalFindingCount}">0</div>
+            <div class="kpi-sub mono"
+                 th:classappend="${ops.staffCoverage.criticalFindingCount > 0} ? 'form-error' : ''"
+                 th:text="${ops.staffCoverage.criticalFindingCount + ' critical · ' + ops.staffCoverage.highFindingCount + ' high'}">
+                0 critical · 0 high
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Incident Response Log</div>
+            <div class="kpi-value" th:text="${#lists.size(ops.incidents)}">0</div>
+            <div class="kpi-sub"
+                 th:text="${#lists.size(ops.incidents.?[status.name() != 'RESOLVED']) + ' open / active · ' + #lists.size(ops.incidents.?[status.name() == 'RESOLVED']) + ' resolved'}">
+                0 open / active
+            </div>
+        </div>
+    </div>
+
+    <!-- 2-Column Split (65% Findings, Shifts, Roster, Incidents / 35% Management Forms) -->
+    <div class="grid-2col">
+        <!-- Left (65%) -->
+        <div class="stack">
+            <!-- Automated Under-Staffing Detector -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Automated Under-Staffing &amp; Shift Gap Checks</h2>
+                    <span class="mono text-muted" th:text="${ops.staffCoverage.totalFindingCount + ' findings'}">0 findings</span>
+                </div>
+                <div class="card-body stack">
+                    <div th:if="${#lists.isEmpty(ops.staffCoverage.findings)}" class="banner banner-info">
+                        All configured zone, gate, medical, supervisory, and schedule-window staffing targets are covered.
+                    </div>
+                    <div th:each="f : ${ops.staffCoverage.findings}" class="review-entry">
+                        <div class="review-entry-header">
+                            <div class="badge-row">
+                                <span class="badge" th:classappend="${f.severityBadgeClass}"
+                                      th:text="${f.severity.name()}">CRITICAL</span>
+                                <strong th:text="${f.title}">Finding title</strong>
+                            </div>
+                            <span class="mono text-secondary" style="font-size: 12px;"
+                                  th:text="${f.measuredValue}">0 assigned</span>
+                        </div>
+                        <p class="text-secondary" style="font-size: 13px;" th:text="${f.detail}">Detail</p>
+                        <div class="text-muted" style="font-size: 11px;" th:text="'Target: ' + ${f.targetNote}">Target</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Shift Assignments Schedule -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Shift Assignments Schedule</h2>
+                    <span class="mono text-muted" th:text="${#lists.size(ops.assignments) + ' shifts'}">0 shifts</span>
+                </div>
+                <div th:if="${#lists.isEmpty(ops.assignments)}" class="card-body">
+                    <p class="text-muted" style="font-size: 13px;">No shifts assigned yet. Register staff and schedule zone/gate shifts on the right.</p>
+                </div>
+                <div th:if="${!#lists.isEmpty(ops.assignments)}" class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Staff Member</th>
+                                <th>Assigned Zone / Gate</th>
+                                <th>Shift Window</th>
+                                <th class="num">Duration</th>
+                                <th sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="a : ${ops.assignments}">
+                                <td>
+                                    <div style="font-weight: 500;" th:text="${a.staffName}">Name</div>
+                                    <span class="badge" th:classappend="${a.roleBadgeClass}" th:text="${a.roleDisplayName}">Security</span>
+                                </td>
+                                <td>
+                                    <div th:text="${a.locationSummary}">AUD-1</div>
+                                    <div th:if="${a.notes != null}" class="text-muted" style="font-size: 11px;" th:text="${a.notes}">Notes</div>
+                                </td>
+                                <td class="mono" style="font-size: 12px;" th:text="${a.shiftWindowLabel}">2026-11-20 16:00–22:00</td>
+                                <td class="num" th:text="${a.durationMinutes + ' min'}">360 min</td>
+                                <td sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')">
+                                    <form th:action="@{/events/{id}/capacity/assignments/{aid}/delete(id=${event.id}, aid=${a.id})}"
+                                          method="post" style="margin: 0;">
+                                        <button type="submit" class="btn btn-ghost btn-sm">Remove</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Registered Staff Directory -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Staff &amp; Security Roster</h2>
+                    <span class="mono text-muted" th:text="${#lists.size(ops.staffMembers) + ' members'}">0 members</span>
+                </div>
+                <div th:if="${#lists.isEmpty(ops.staffMembers)}" class="card-body">
+                    <p class="text-muted" style="font-size: 13px;">No personnel registered for this event yet.</p>
+                </div>
+                <div th:if="${!#lists.isEmpty(ops.staffMembers)}" class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Personnel</th>
+                                <th>Role</th>
+                                <th>Contact &amp; Certifications</th>
+                                <th class="num">Shifts</th>
+                                <th sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="m : ${ops.staffMembers}">
+                                <td>
+                                    <div style="font-weight: 500;" th:text="${m.name}">Name</div>
+                                    <div th:if="${m.linkedUserEmail != null}" class="mono text-muted" style="font-size: 11px;"
+                                         th:text="'User: ' + ${m.linkedUserEmail}">staff@vyuha.local</div>
+                                </td>
+                                <td>
+                                    <span class="badge" th:classappend="${m.roleBadgeClass}" th:text="${m.roleDisplayName}">Security</span>
+                                </td>
+                                <td>
+                                    <div class="mono" style="font-size: 12px;"
+                                         th:text="${m.contactPhone != null ? m.contactPhone : '—'}">Phone</div>
+                                    <div th:if="${m.certifications != null}" class="text-secondary" style="font-size: 11px;"
+                                         th:text="${m.certifications}">First Aid</div>
+                                </td>
+                                <td class="num" th:text="${m.assignmentCount}">0</td>
+                                <td sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')">
+                                    <div class="stack" style="gap: 6px; min-width: 170px;">
+                                        <details class="details-panel">
+                                            <summary>Edit</summary>
+                                            <form th:action="@{/events/{id}/capacity/staff/{sid}/update(id=${event.id}, sid=${m.id})}"
+                                                  method="post" class="stack" style="margin-top: 6px; gap: 6px;">
+                                                <input name="name" type="text" maxlength="150" required class="form-control"
+                                                       th:value="${m.name}">
+                                                <select name="roleType" class="form-control">
+                                                    <option th:each="r : ${staffRoles}" th:value="${r.name()}"
+                                                            th:text="${r.displayName}" th:selected="${m.roleType == r}">Role</option>
+                                                </select>
+                                                <input name="contactPhone" type="text" maxlength="40" class="form-control mono"
+                                                       th:value="${m.contactPhone}" placeholder="Phone">
+                                                <input name="certifications" type="text" maxlength="500" class="form-control"
+                                                       th:value="${m.certifications}" placeholder="Certifications">
+                                                <select name="userId" class="form-control">
+                                                    <option value="">No linked field account</option>
+                                                    <option th:each="u : ${ops.fieldUserOptions}"
+                                                            th:value="${u.id}" th:text="${u.label}"
+                                                            th:selected="${m.linkedUserId == u.id}">User</option>
+                                                </select>
+                                                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                                            </form>
+                                        </details>
+                                        <form th:action="@{/events/{id}/capacity/staff/{sid}/delete(id=${event.id}, sid=${m.id})}"
+                                              method="post" style="margin: 0;">
+                                            <button type="submit" class="btn btn-ghost btn-sm">Delete</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Incident & Staff Response Log -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Incident &amp; Staff Response Log</h2>
+                    <span class="mono text-muted" th:text="${#lists.size(ops.incidents) + ' entries'}">0 entries</span>
+                </div>
+                <div class="card-body stack">
+                    <div th:if="${#lists.isEmpty(ops.incidents)}" class="empty-state" style="padding: 18px;">
+                        <p>No operational incidents recorded yet.</p>
+                    </div>
+                    <div th:each="inc : ${ops.incidents}" class="review-entry">
+                        <div class="review-entry-header">
+                            <div class="badge-row">
+                                <span class="badge" th:classappend="${inc.severityBadgeClass}"
+                                      th:text="${inc.severity.name()}">HIGH</span>
+                                <span class="badge" th:classappend="${inc.statusBadgeClass}"
+                                      th:text="${inc.statusDisplayName}">Open</span>
+                                <strong th:text="${inc.zoneCode != null ? (inc.zoneCode + ' · ' + inc.zoneName) : 'General Venue'}">Zone</strong>
+                            </div>
+                            <span class="mono text-muted" style="font-size: 12px;"
+                                  th:text="${@fmt.utc(inc.reportedAt)}">2026-11-20 18:00 UTC</span>
+                        </div>
+
+                        <p style="white-space: pre-line;" th:text="${inc.description}">Description</p>
+
+                        <div class="text-muted" style="font-size: 12px;">
+                            <span>Reported by <strong th:text="${inc.reportedByName}">Reporter</strong></span>
+                            <span th:if="${inc.assignedStaffName != null}"
+                                  th:text="' · Responder: ' + ${inc.assignedStaffName}"></span>
+                            <span th:if="${inc.resolvedAt != null}" class="mono"
+                                  th:text="' · Resolved: ' + ${@fmt.utc(inc.resolvedAt)}"></span>
+                        </div>
+
+                        <div th:if="${inc.responseTaken != null}" class="review-response-box">
+                            <div class="text-muted" style="font-size: 11px; margin-bottom: 2px;">Response / Action Taken</div>
+                            <p style="white-space: pre-line;" th:text="${inc.responseTaken}">Action taken</p>
+                        </div>
+
+                        <details sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')" class="details-panel">
+                            <summary>Update Status / Response</summary>
+                            <form th:action="@{/events/{id}/capacity/incidents/{iid}/update(id=${event.id}, iid=${inc.id})}"
+                                  method="post" class="stack" style="margin-top: 8px;">
+                                <div class="form-grid-2">
+                                    <select name="status" class="form-control">
+                                        <option th:each="st : ${incidentStatuses}" th:value="${st.name()}"
+                                                th:text="${st.displayName}" th:selected="${inc.status == st}">Status</option>
+                                    </select>
+                                    <select name="assignedStaffId" class="form-control">
+                                        <option value="">Unassigned</option>
+                                        <option th:each="m : ${ops.staffMembers}" th:value="${m.id}"
+                                                th:text="${m.name + ' (' + m.roleDisplayName + ')'}"
+                                                th:selected="${inc.assignedStaffId == m.id}">Staff</option>
+                                    </select>
+                                </div>
+                                <textarea name="responseTaken" rows="2" class="form-control" maxlength="1500"
+                                          th:text="${inc.responseTaken}"
+                                          placeholder="Document responder dispatch and mitigation action..."></textarea>
+                                <div>
+                                    <button type="submit" class="btn btn-secondary btn-sm">Update Incident</button>
+                                </div>
+                            </form>
+                        </details>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right (35%): Management Forms -->
+        <div class="stack">
+            <div class="card" sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')">
+                <div class="card-header">
+                    <h2 class="section-title">Register Staff Member</h2>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/events/{id}/capacity/staff(id=${event.id})}" method="post" class="stack">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="staffName">Full Name</label>
+                            <input id="staffName" name="name" type="text" maxlength="150" required
+                                   class="form-control" placeholder="e.g., Rohan Verma">
+                        </div>
+
+                        <div class="form-grid-2">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="staffRoleType">Role</label>
+                                <select id="staffRoleType" name="roleType" class="form-control" required>
+                                    <option th:each="r : ${staffRoles}" th:value="${r.name()}" th:text="${r.displayName}">Role</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="staffPhone">Contact Phone</label>
+                                <input id="staffPhone" name="contactPhone" type="text" maxlength="40"
+                                       class="form-control mono" placeholder="+91-98000-00001">
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="staffCerts">Certifications / Briefing Notes</label>
+                            <input id="staffCerts" name="certifications" type="text" maxlength="500"
+                                   class="form-control" placeholder="First Aid, Crowd Marshal, Radio Channel 2">
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="staffUserId">Link Field Staff Account (Optional)</label>
+                            <select id="staffUserId" name="userId" class="form-control">
+                                <option value="">Not linked to login account</option>
+                                <option th:each="u : ${ops.fieldUserOptions}" th:value="${u.id}" th:text="${u.label}">User</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <button type="submit" class="btn btn-primary btn-sm">Add Staff Member</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card" sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')">
+                <div class="card-header">
+                    <h2 class="section-title">Schedule Shift Assignment</h2>
+                </div>
+                <div class="card-body">
+                    <div th:if="${#lists.isEmpty(ops.staffMembers)}" class="text-muted" style="font-size: 12px;">
+                        Register at least one staff member above before scheduling a shift.
+                    </div>
+                    <form th:if="${!#lists.isEmpty(ops.staffMembers)}"
+                          th:action="@{/events/{id}/capacity/assignments(id=${event.id})}" method="post" class="stack">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="assignStaffId">Staff Member</label>
+                            <select id="assignStaffId" name="staffId" class="form-control" required>
+                                <option th:each="m : ${ops.staffMembers}" th:value="${m.id}"
+                                        th:text="${m.name + ' (' + m.roleDisplayName + ')'}">Staff</option>
+                            </select>
+                        </div>
+
+                        <div class="form-grid-2">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="assignZoneId">Functional Zone</label>
+                                <select id="assignZoneId" name="zoneId" class="form-control">
+                                    <option value="">None / General</option>
+                                    <option th:each="z : ${ops.zoneOptions}" th:value="${z.id}" th:text="${z.label}">Zone</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="assignInfraId">Gate / Infra Post</label>
+                                <select id="assignInfraId" name="infraId" class="form-control">
+                                    <option value="">None</option>
+                                    <option th:each="i : ${ops.infraOptions}" th:value="${i.id}" th:text="${i.label}">Infra</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="postLabel">Custom Post Label (Optional)</label>
+                            <input id="postLabel" name="postLabel" type="text" maxlength="160" class="form-control"
+                                   placeholder="e.g., North Gate Left Turnstile">
+                        </div>
+
+                        <div class="form-grid-2">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="shiftStart">Shift Start</label>
+                                <input id="shiftStart" name="shiftStart" type="datetime-local" required
+                                       class="form-control mono"
+                                       th:value="${ops.eventStart != null ? #temporals.format(ops.eventStart, 'yyyy-MM-dd''T''HH:mm') : ''}">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="shiftEnd">Shift End</label>
+                                <input id="shiftEnd" name="shiftEnd" type="datetime-local" required
+                                       class="form-control mono"
+                                       th:value="${ops.eventEnd != null ? #temporals.format(ops.eventEnd, 'yyyy-MM-dd''T''HH:mm') : ''}">
+                            </div>
+                        </div>
+
+                        <div>
+                            <button type="submit" class="btn btn-primary btn-sm">Assign Shift</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Planner-Configured Minimum Staffing Targets -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Minimum Staffing Targets</h2>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/events/{id}/capacity/staffing-targets(id=${event.id})}" method="post" class="stack">
+                        <div class="form-grid-2">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="minSecurityPerActiveGate">Min Security / Gate</label>
+                                <input id="minSecurityPerActiveGate" name="minSecurityPerActiveGate" type="number" min="0" max="50"
+                                       class="form-control mono" th:value="${ops.staffingTargets.minSecurityPerActiveGate}"
+                                       th:disabled="${!ops.canEdit}">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="minStaffPerPublicZone">Min Staff / Zone</label>
+                                <input id="minStaffPerPublicZone" name="minStaffPerPublicZone" type="number" min="0" max="50"
+                                       class="form-control mono" th:value="${ops.staffingTargets.minStaffPerPublicZone}"
+                                       th:disabled="${!ops.canEdit}">
+                            </div>
+                        </div>
+                        <div class="form-grid-2">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="minMedicalStaffTotal">Min Medical Total</label>
+                                <input id="minMedicalStaffTotal" name="minMedicalStaffTotal" type="number" min="0" max="100"
+                                       class="form-control mono" th:value="${ops.staffingTargets.minMedicalStaffTotal}"
+                                       th:disabled="${!ops.canEdit}">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="minSupervisorsTotal">Min Supervisors</label>
+                                <input id="minSupervisorsTotal" name="minSupervisorsTotal" type="number" min="0" max="50"
+                                       class="form-control mono" th:value="${ops.staffingTargets.minSupervisorsTotal}"
+                                       th:disabled="${!ops.canEdit}">
+                            </div>
+                        </div>
+                        <div class="form-grid-2">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="attendeesPerStaffRatio">Attendees / Staff</label>
+                                <input id="attendeesPerStaffRatio" name="attendeesPerStaffRatio" type="number" min="0" max="5000"
+                                       class="form-control mono" th:value="${ops.staffingTargets.attendeesPerStaffRatio}"
+                                       th:disabled="${!ops.canEdit}">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="shiftWindowMinutes">Check Window (min)</label>
+                                <input id="shiftWindowMinutes" name="shiftWindowMinutes" type="number" min="15" max="240"
+                                       class="form-control mono" th:value="${ops.staffingTargets.shiftWindowMinutes}"
+                                       th:disabled="${!ops.canEdit}">
+                            </div>
+                        </div>
+                        <div th:if="${ops.canEdit}">
+                            <button type="submit" class="btn btn-secondary btn-sm">Save Staffing Targets</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Log New Incident -->
+            <div class="card" sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')">
+                <div class="card-header">
+                    <h2 class="section-title">Log Operational Incident</h2>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/events/{id}/capacity/incidents(id=${event.id})}" method="post" class="stack">
+                        <div class="form-grid-2">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="incSeverity">Severity</label>
+                                <select id="incSeverity" name="severity" class="form-control" required>
+                                    <option th:each="sev : ${incidentSeverities}" th:value="${sev.name()}" th:text="${sev.name()}">HIGH</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="incZoneId">Zone (Optional)</label>
+                                <select id="incZoneId" name="zoneId" class="form-control">
+                                    <option value="">General Venue</option>
+                                    <option th:each="z : ${ops.zoneOptions}" th:value="${z.id}" th:text="${z.label}">Zone</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="incResponderId">Assigned Responder</label>
+                            <select id="incResponderId" name="assignedStaffId" class="form-control">
+                                <option value="">Unassigned</option>
+                                <option th:each="m : ${ops.staffMembers}" th:value="${m.id}"
+                                        th:text="${m.name + ' (' + m.roleDisplayName + ')'}">Staff</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="incDescription">Incident Description</label>
+                            <textarea id="incDescription" name="description" rows="2" maxlength="1500" required
+                                      class="form-control" placeholder="Describe queue spill, medical call, or barrier issue..."></textarea>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="incResponse">Initial Response Taken (Optional)</label>
+                            <input id="incResponse" name="responseTaken" type="text" maxlength="1500" class="form-control"
+                                   placeholder="Opened overflow lane / dispatched patrol...">
+                        </div>
+                        <div>
+                            <button type="submit" class="btn btn-primary btn-sm">Log Incident</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

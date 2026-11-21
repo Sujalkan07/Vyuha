@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<body>
+<th:block th:fragment="assistantDrawer(eventId)"
+          th:if="${eventId != null}"
+          sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER', 'SAFETY_REVIEWER')">
+    <aside id="planningAssistantDrawer"
+           class="drawer-right assistant-drawer"
+           th:attr="data-event-id=${eventId}"
+           aria-label="Planning Assistant"
+           aria-hidden="true"
+           hidden>
+        <div class="assistant-drawer-header">
+            <div>
+                <div class="assistant-drawer-title">Planning Assistant</div>
+                <div class="assistant-drawer-sub">Read-only guidance, What-If runner &amp; guideline citations</div>
+            </div>
+            <button type="button" id="assistantCloseBtn" class="btn btn-ghost btn-sm" aria-label="Close Planning Assistant">
+                Close
+            </button>
+        </div>
+
+        <div class="assistant-attribution" role="note">
+            <strong>AI/Assistant Note — Human Review Required</strong>
+            <span>Reads verified Java outputs only; never alters layout geometry without confirmation.</span>
+        </div>
+
+        <div class="assistant-tabs" role="tablist" aria-label="Planning Assistant modes">
+            <button type="button" class="assistant-tab active" data-assistant-tab="explain" role="tab" aria-selected="true">
+                Explain Findings
+            </button>
+            <button type="button" class="assistant-tab" data-assistant-tab="whatif" role="tab" aria-selected="false">
+                What-If Scenario
+            </button>
+            <button type="button" class="assistant-tab" data-assistant-tab="guidelines" role="tab" aria-selected="false">
+                Guideline Search
+            </button>
+        </div>
+
+        <div class="assistant-body">
+            <div id="assistantStatusBanner" class="banner banner-danger" style="display: none; font-size: 12px;"></div>
+
+            <!-- Tab 1: Explain Findings -->
+            <div class="assistant-pane active" data-assistant-pane="explain">
+                <div class="assistant-panel-box">
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label class="form-label" for="assistantExplainFocus">Focus Area</label>
+                        <select id="assistantExplainFocus" class="form-control">
+                            <option value="ALL">All Layout Findings &amp; Metrics</option>
+                            <option value="CONFLICTS">Infrastructure Conflicts</option>
+                            <option value="BOTTLENECKS">Pedestrian Bottlenecks</option>
+                            <option value="CAPACITY">Site Plan &amp; Capacity Review</option>
+                            <option value="SIMULATION">Latest Simulation Run</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 8px;">
+                        <label class="form-label" for="assistantExplainPrompt">Optional Question</label>
+                        <input id="assistantExplainPrompt" type="text" maxlength="500" class="form-control"
+                               placeholder="e.g., What should we fix first to clear the ambulance lane?">
+                    </div>
+                    <button type="button" id="assistantExplainRunBtn" class="btn btn-primary btn-sm" style="width: 100%;">
+                        Explain Current Layout
+                    </button>
+                </div>
+
+                <div id="assistantExplainOutput" style="display: none;" class="stack">
+                    <div id="assistantExplainMetrics" class="assistant-metrics-strip mono"></div>
+                    <div id="assistantExplainSummary" class="banner banner-info" style="font-size: 12px;"></div>
+                    <div id="assistantExplainItems" class="stack" style="gap: 8px;"></div>
+                </div>
+            </div>
+
+            <!-- Tab 2: What-If Scenario -->
+            <div class="assistant-pane" data-assistant-pane="whatif">
+                <div class="assistant-panel-box">
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label class="form-label" for="assistantWhatIfPrompt">Natural-Language What-If Scenario</label>
+                        <textarea id="assistantWhatIfPrompt" rows="3" maxlength="500" class="form-control"
+                                  placeholder="e.g., What happens if Exit Gate B closes during a sudden arrival rush?"></textarea>
+                    </div>
+                    <div class="assistant-chip-row" aria-label="Example prompts">
+                        <button type="button" class="assistant-chip"
+                                data-whatif-sample="What happens if Exit Gate B closes during a sudden arrival rush?">
+                            Close Exit Gate B
+                        </button>
+                        <button type="button" class="assistant-chip"
+                                data-whatif-sample="Test blocking Main Corridor under normal operations">
+                            Block Corridor
+                        </button>
+                        <button type="button" class="assistant-chip"
+                                data-whatif-sample="Simulate arrival rush with 600 agents for 6 minutes">
+                            Arrival Rush (600)
+                        </button>
+                    </div>
+                    <button type="button" id="assistantWhatIfPreviewBtn" class="btn btn-secondary btn-sm" style="width: 100%; margin-top: 8px;">
+                        Parse &amp; Preview Scenario
+                    </button>
+                </div>
+
+                <!-- Explicit Confirmation Gate -->
+                <div id="assistantWhatIfPreviewPanel" class="assistant-panel-box" style="display: none;">
+                    <div class="assistant-card-header">
+                        <strong style="font-size: 12px;">Confirm Simulation Parameters</strong>
+                        <span id="assistantWhatIfConfidence" class="badge badge-neutral">MEDIUM</span>
+                    </div>
+                    <p id="assistantWhatIfConfirmationText" class="text-secondary" style="font-size: 12px;"></p>
+                    <ul id="assistantWhatIfNotes" class="assistant-notes-list"></ul>
+
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label class="form-label" for="assistantConfirmScenario">Scenario Type</label>
+                        <select id="assistantConfirmScenario" class="form-control">
+                            <option value="NORMAL_OPERATIONS">Normal Operations</option>
+                            <option value="ARRIVAL_RUSH">Arrival Rush (2.5x Surge)</option>
+                            <option value="STAGE_CROWDING">Stage Crowding</option>
+                            <option value="BLOCKED_CORRIDOR">Blocked Corridor</option>
+                            <option value="CLOSED_EXIT">Closed Exit</option>
+                        </select>
+                    </div>
+
+                    <div id="assistantConfirmExitGroup" class="form-group" style="display: none; margin-bottom: 6px;">
+                        <label class="form-label" for="assistantConfirmExitSelect">Target Exit Gate</label>
+                        <select id="assistantConfirmExitSelect" class="form-control"></select>
+                    </div>
+
+                    <div id="assistantConfirmEdgeGroup" class="form-group" style="display: none; margin-bottom: 6px;">
+                        <label class="form-label" for="assistantConfirmEdgeSelect">Target Corridor</label>
+                        <select id="assistantConfirmEdgeSelect" class="form-control"></select>
+                    </div>
+
+                    <div class="form-grid-2">
+                        <div class="form-group" style="margin-bottom: 6px;">
+                            <label class="form-label" for="assistantConfirmAgents">Agents</label>
+                            <input id="assistantConfirmAgents" type="number" min="20" max="2500" step="10" class="form-control mono">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 6px;">
+                            <label class="form-label" for="assistantConfirmDuration">Duration (s)</label>
+                            <input id="assistantConfirmDuration" type="number" min="60" max="1800" step="30" class="form-control mono">
+                        </div>
+                    </div>
+
+                    <div class="form-grid-2">
+                        <div class="form-group" style="margin-bottom: 6px;">
+                            <label class="form-label" for="assistantConfirmSeed">Seed</label>
+                            <input id="assistantConfirmSeed" type="number" step="1" class="form-control mono">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 6px;">
+                            <label class="form-label" for="assistantConfirmDisruptionSec">Disruption Start (s)</label>
+                            <input id="assistantConfirmDisruptionSec" type="number" min="0" max="900" step="5" class="form-control mono">
+                        </div>
+                    </div>
+
+                    <div class="banner banner-warn" style="font-size: 11px; margin-bottom: 8px;">
+                        Running this simulation does not modify venue walls, zones, or infrastructure. Click Confirm &amp; Run to execute.
+                    </div>
+
+                    <div class="form-actions" style="margin-top: 0;">
+                        <button type="button" id="assistantWhatIfConfirmBtn" class="btn btn-primary btn-sm">
+                            Confirm &amp; Run
+                        </button>
+                        <button type="button" id="assistantWhatIfCancelBtn" class="btn btn-ghost btn-sm">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Execution Result -->
+                <div id="assistantWhatIfResultPanel" style="display: none;" class="stack">
+                    <div id="assistantWhatIfDisclaimer" class="banner banner-info" style="font-size: 11px;"></div>
+                    <div id="assistantWhatIfSummary" class="assistant-card" style="font-size: 12px;"></div>
+                    <div id="assistantWhatIfDeltas" class="assistant-delta-grid"></div>
+                    <div id="assistantWhatIfTakeaways" class="assistant-card" style="font-size: 12px;"></div>
+                    <div class="form-actions" style="margin-top: 0;">
+                        <a id="assistantReplayLink" href="#" class="btn btn-primary btn-sm">Inspect Visual Replay</a>
+                        <a id="assistantCompareLink" href="#" class="btn btn-secondary btn-sm">Compare vs Baseline</a>
+                    </div>
+                    <div id="assistantWhatIfCitations" class="stack" style="gap: 6px;"></div>
+                </div>
+            </div>
+
+            <!-- Tab 3: Guideline Search -->
+            <div class="assistant-pane" data-assistant-pane="guidelines">
+                <div class="assistant-panel-box">
+                    <div class="form-group" style="margin-bottom: 6px;">
+                        <label class="form-label" for="assistantGuidelineQuery">Search Crowd-Safety Guidance</label>
+                        <input id="assistantGuidelineQuery" type="text" maxlength="200" class="form-control"
+                               placeholder="e.g., ambulance lane width, contra-flow, holding queue">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 8px;">
+                        <label class="form-label" for="assistantGuidelineCategory">Category</label>
+                        <select id="assistantGuidelineCategory" class="form-control">
+                            <option value="ALL">All Categories</option>
+                            <option value="CROWD_MANAGEMENT">Crowd Management</option>
+                            <option value="EGRESS_DESIGN">Egress &amp; Corridor Design</option>
+                            <option value="QUEUE_MANAGEMENT">Arrival Waves &amp; Queues</option>
+                            <option value="EMERGENCY_OPS">Emergency &amp; Live Ops</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                        <button type="button" id="assistantGuidelineSearchBtn" class="btn btn-primary btn-sm">
+                            Search Citations
+                        </button>
+                        <a th:href="@{/guidelines}" class="btn btn-ghost btn-sm">Full Reference Page</a>
+                    </div>
+                </div>
+
+                <div id="assistantGuidelineResults" class="stack" style="gap: 8px;"></div>
+            </div>
+
+            <details id="assistantHistoryDetails" class="details-panel" style="margin-top: 8px;">
+                <summary>Recent Assistant Activity</summary>
+                <div id="assistantHistoryList" class="stack" style="gap: 6px; margin-top: 6px;"></div>
+            </details>
+        </div>
+    </aside>
+
+    <script type="module" th:src="@{/js/assistant-drawer.js}"></script>
+</th:block>
+</body>
+</html>

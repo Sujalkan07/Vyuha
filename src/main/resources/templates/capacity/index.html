@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head(${event.name} + ' — Capacity &amp; Review')}"></head>
+<body th:replace="~{fragments/layout :: page(${event.name} + ' — Capacity &amp; Review', 'events', ${event.id}, 'capacity', ~{::section})}">
+<section class="stack">
+    <div class="page-header">
+        <div>
+            <div class="badge-row" style="margin-bottom: 6px;">
+                <span class="badge"
+                      th:classappend="${view.calculation.effectiveReviewStatus.badgeClass}"
+                      th:text="${view.calculation.effectiveReviewStatus.displayName}">Pending Professional Review</span>
+                <span class="badge badge-neutral" th:text="${event.category.displayName}">College Festival</span>
+            </div>
+            <h1 th:text="${activeSubTab == 'arrivals' ? 'Arrival Waves &amp; Queue Overflow' : (activeSubTab == 'staff' ? 'Staff Roster, Shifts &amp; Incidents' : 'Preliminary Capacity Review')}">Preliminary Capacity Review</h1>
+            <p class="page-header-subtitle">
+                Multi-constraint capacity comparison, arrival wave queue overflow projection, and staff/incident coverage.
+            </p>
+        </div>
+
+        <div class="filter-actions">
+            <a th:href="@{/events/{id}/venue(id=${event.id}, mode='zones')}" class="btn btn-secondary">
+                Edit Zones &amp; Grid
+            </a>
+        </div>
+    </div>
+
+    <div class="subtab-bar" role="tablist" aria-label="Capacity and Staff sections">
+        <a th:href="@{/events/{id}/capacity(id=${event.id})}"
+           class="subtab-link"
+           th:classappend="${activeSubTab == 'review'} ? ' active' : ''">
+            <span>Capacity Review</span>
+        </a>
+        <a th:href="@{/events/{id}/capacity(id=${event.id}, tab='arrivals')}"
+           class="subtab-link"
+           th:classappend="${activeSubTab == 'arrivals'} ? ' active' : ''">
+            <span>Arrival Waves &amp; Queues</span>
+            <span class="subtab-count" th:text="${#lists.size(ops.queueProjection.intervals)}">0</span>
+        </a>
+        <a th:href="@{/events/{id}/capacity(id=${event.id}, tab='staff')}"
+           class="subtab-link"
+           th:classappend="${activeSubTab == 'staff'} ? ' active' : ''">
+            <span>Staff &amp; Incidents</span>
+            <span class="subtab-count" th:text="${ops.staffCoverage.totalStaffCount}">0</span>
+        </a>
+    </div>
+
+    <div th:if="${successMessage}" class="banner banner-info" role="status" th:text="${successMessage}">Success</div>
+    <div th:if="${errorMessage}" class="banner banner-danger" role="alert" th:text="${errorMessage}">Error</div>
+
+    <div th:if="${activeSubTab == 'review'}" class="stack">
+    <div class="banner banner-warn">
+        <strong>Human-Led Assumption Review:</strong> Vyuha never invents universal legal crowd limits. Planners must explicitly enter density assumptions with guiding source citations, and a designated safety reviewer must verify assumptions before treating preliminary figures as documented.
+    </div>
+
+    <!-- Top KPI Row (max 4 cards per design.md) -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-label">Tightest Preliminary Ceiling</div>
+            <div class="kpi-value"
+                 th:text="${view.calculation.preliminaryCapacity != null ? #numbers.formatInteger(view.calculation.preliminaryCapacity, 1, 'COMMA') : '—'}">
+                —
+            </div>
+            <div class="kpi-sub" th:text="${view.calculation.governingConstraint.displayName}">Incomplete</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Expected Attendance vs. Ceiling</div>
+            <div class="kpi-value"
+                 th:text="${view.expectedAttendance != null ? #numbers.formatInteger(view.expectedAttendance, 1, 'COMMA') : 'Not set'}">
+                3,500
+            </div>
+            <div class="kpi-sub"
+                 th:if="${view.calculation.attendanceHeadroom != null}"
+                 th:classappend="${view.calculation.exceedsPreliminaryCeiling} ? 'form-error' : ''"
+                 th:text="${view.calculation.exceedsPreliminaryCeiling ? ('Over ceiling by ' + #numbers.formatInteger(-view.calculation.attendanceHeadroom, 1, 'COMMA') + ' persons') : ('Headroom: +' + #numbers.formatInteger(view.calculation.attendanceHeadroom, 1, 'COMMA') + ' persons')}">
+                Headroom
+            </div>
+            <div class="kpi-sub" th:if="${view.calculation.attendanceHeadroom == null}">
+                Enter capacity assumptions to compare
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Net Usable Gathering Area</div>
+            <div class="kpi-value"
+                 th:text="${#numbers.formatDecimal(view.areaBreakdown.usableAreaSqm, 1, 1) + ' m²'}">
+                0.0 m²
+            </div>
+            <div class="kpi-sub mono"
+                 th:text="'Gross: ' + ${#numbers.formatDecimal(view.areaBreakdown.grossAreaSqm, 1, 1)} + ' m²'">
+                Gross: 0.0 m²
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Professional Review Status</div>
+            <div style="margin-top: 6px;">
+                <span class="badge"
+                      th:classappend="${view.calculation.effectiveReviewStatus.badgeClass}"
+                      th:text="${view.calculation.effectiveReviewStatus.displayName}">Pending Review</span>
+            </div>
+            <div class="kpi-sub mono" style="margin-top: 6px;"
+                 th:text="${view.calculation.verifiedCapacityZones + ' / ' + view.calculation.totalCapacityZones + ' zones reviewer verified'}">
+                0 / 0 zones reviewer verified
+            </div>
+        </div>
+    </div>
+
+    <!-- 2-Column Comparison & Governing Constraint -->
+    <div class="grid-2col">
+        <!-- Left (65%): 4-Constraint Comparison Table & Warnings -->
+        <div class="stack">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Multi-Constraint Capacity Ceilings</h2>
+                    <span class="mono text-muted" style="font-size: 12px;">C_preliminary = min(C_space, C_flow, C_holding, C_official)</span>
+                </div>
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Constraint</th>
+                                <th>Formula / Basis</th>
+                                <th class="num">Calculated Ceiling</th>
+                                <th style="width: 140px;">Relative Scale</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <strong>C_space · Usable Space</strong>
+                                    <span th:if="${view.calculation.governingConstraint.name() == 'USABLE_SPACE'}"
+                                          class="badge badge-high" style="margin-left: 6px;">Tightest</span>
+                                </td>
+                                <td class="text-secondary" style="font-size: 12px;">
+                                    Sum of &lfloor;usable m² &times; density&rfloor; across gathering zones
+                                </td>
+                                <td class="num"
+                                    th:text="${view.calculation.usableSpaceCapacity != null ? #numbers.formatInteger(view.calculation.usableSpaceCapacity, 1, 'COMMA') : '—'}">—</td>
+                                <td>
+                                    <div class="constraint-bar-track">
+                                        <div class="constraint-bar-fill"
+                                             th:classappend="${view.calculation.governingConstraint.name() == 'USABLE_SPACE'} ? ' is-tightest' : ''"
+                                             th:style="'width:' + ${view.calculation.barWidthPct(view.calculation.usableSpaceCapacity)} + '%'"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <strong>C_flow · Entry / Exit Flow</strong>
+                                    <span th:if="${view.calculation.governingConstraint.name() == 'ENTRY_EXIT_FLOW'}"
+                                          class="badge badge-high" style="margin-left: 6px;">Tightest</span>
+                                </td>
+                                <td class="text-secondary" style="font-size: 12px;">
+                                    <span class="mono"
+                                          th:text="${'In: ' + (view.calculation.entryFlowCapacity != null ? view.calculation.entryFlowCapacity : '—') + ' | Out: ' + (view.calculation.exitFlowCapacity != null ? view.calculation.exitFlowCapacity : '—')}">
+                                        In: — | Out: —
+                                    </span>
+                                </td>
+                                <td class="num"
+                                    th:text="${view.calculation.flowCapacity != null ? #numbers.formatInteger(view.calculation.flowCapacity, 1, 'COMMA') : '—'}">—</td>
+                                <td>
+                                    <div class="constraint-bar-track">
+                                        <div class="constraint-bar-fill"
+                                             th:classappend="${view.calculation.governingConstraint.name() == 'ENTRY_EXIT_FLOW'} ? ' is-tightest' : ''"
+                                             th:style="'width:' + ${view.calculation.barWidthPct(view.calculation.flowCapacity)} + '%'"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <strong>C_holding · Queue / Holding</strong>
+                                    <span th:if="${view.calculation.governingConstraint.name() == 'HOLDING_SPACE'}"
+                                          class="badge badge-high" style="margin-left: 6px;">Tightest</span>
+                                </td>
+                                <td class="text-secondary" style="font-size: 12px;">
+                                    <span class="mono"
+                                          th:text="'Zones: ' + ${view.calculation.holdingZoneAreaCapacity != null ? view.calculation.holdingZoneAreaCapacity : 0} + ' + Buffer: ' + ${view.calculation.holdingBufferCapacity}">
+                                        Zones: 0 + Buffer: 0
+                                    </span>
+                                </td>
+                                <td class="num"
+                                    th:text="${view.calculation.holdingSpaceCapacity != null ? #numbers.formatInteger(view.calculation.holdingSpaceCapacity, 1, 'COMMA') : '—'}">—</td>
+                                <td>
+                                    <div class="constraint-bar-track">
+                                        <div class="constraint-bar-fill"
+                                             th:classappend="${view.calculation.governingConstraint.name() == 'HOLDING_SPACE'} ? ' is-tightest' : ''"
+                                             th:style="'width:' + ${view.calculation.barWidthPct(view.calculation.holdingSpaceCapacity)} + '%'"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <strong>C_official · Official Permit Limit</strong>
+                                    <span th:if="${view.calculation.governingConstraint.name() == 'OFFICIAL_LIMIT'}"
+                                          class="badge badge-high" style="margin-left: 6px;">Tightest</span>
+                                </td>
+                                <td class="text-secondary" style="font-size: 12px;"
+                                    th:text="${view.parameters.officialLimitSource != null ? view.parameters.officialLimitSource : 'Statutory / permit cap not entered'}">
+                                    Statutory limit
+                                </td>
+                                <td class="num"
+                                    th:text="${view.calculation.officialVenueLimit != null ? #numbers.formatInteger(view.calculation.officialVenueLimit, 1, 'COMMA') : '—'}">—</td>
+                                <td>
+                                    <div class="constraint-bar-track">
+                                        <div class="constraint-bar-fill"
+                                             th:classappend="${view.calculation.governingConstraint.name() == 'OFFICIAL_LIMIT'} ? ' is-tightest' : ''"
+                                             th:style="'width:' + ${view.calculation.barWidthPct(view.calculation.officialVenueLimit)} + '%'"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Screening Warnings -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Capacity &amp; Layout Screening Findings</h2>
+                    <span class="mono text-muted" th:text="${#lists.size(view.calculation.warnings) + ' items'}">0 items</span>
+                </div>
+                <div class="card-body stack">
+                    <div th:if="${#lists.isEmpty(view.calculation.warnings)}" class="banner banner-info">
+                        No open capacity input or spatial zone warnings detected.
+                    </div>
+                    <div th:each="warn : ${view.calculation.warnings}" class="review-entry">
+                        <div class="review-entry-header">
+                            <span class="badge"
+                                  th:classappend="${warn.severity == 'CRITICAL' ? 'badge-critical' : (warn.severity == 'HIGH' ? 'badge-high' : (warn.severity == 'LOW' ? 'badge-low' : 'badge-info'))}"
+                                  th:text="${warn.severity}">HIGH</span>
+                            <strong style="flex: 1;" th:text="${warn.title}">Warning title</strong>
+                        </div>
+                        <p class="text-secondary" style="font-size: 13px;" th:text="${warn.detail}">Detail</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right (35%): Highlighted Tightest Constraint + Flow/Official Inputs + Overall Reviewer Verification -->
+        <div class="stack">
+            <div class="constraint-card"
+                 th:classappend="${view.calculation.exceedsPreliminaryCeiling} ? ' is-critical' : ''">
+                <div class="kpi-label">Tightest Governing Constraint</div>
+                <h2 class="section-title" style="margin-top: 4px;"
+                    th:text="${view.calculation.governingConstraint.displayName}">Usable Space</h2>
+                <div class="kpi-value" style="margin-top: 8px;"
+                     th:text="${view.calculation.preliminaryCapacity != null ? #numbers.formatInteger(view.calculation.preliminaryCapacity, 1, 'COMMA') + ' persons' : 'Incomplete'}">
+                    —
+                </div>
+                <p class="text-secondary" style="font-size: 13px; margin-top: 6px;"
+                   th:text="${view.calculation.governingExplanation}">Explanation</p>
+            </div>
+
+            <!-- Flow & Official Limit Parameters -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Flow &amp; Official Limit Inputs</h2>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/events/{id}/capacity/parameters(id=${event.id})}" method="post" class="stack">
+                        <div class="form-grid-2">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="officialVenueLimit">Official Limit (C_official)</label>
+                                <input id="officialVenueLimit" name="officialVenueLimit" type="number" min="1"
+                                       class="form-control mono" th:value="${view.parameters.officialVenueLimit}"
+                                       th:disabled="${!view.canEditAssumptions}" placeholder="e.g., 4000">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="holdingBufferCapacity">Holding Buffer (persons)</label>
+                                <input id="holdingBufferCapacity" name="holdingBufferCapacity" type="number" min="0"
+                                       class="form-control mono" th:value="${view.parameters.holdingBufferCapacity}"
+                                       th:disabled="${!view.canEditAssumptions}">
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="officialLimitSource">Official Limit Citation / Permit Ref</label>
+                            <input id="officialLimitSource" name="officialLimitSource" type="text" maxlength="255"
+                                   class="form-control" th:value="${view.parameters.officialLimitSource}"
+                                   th:disabled="${!view.canEditAssumptions}"
+                                   placeholder="e.g., Municipal Fire &amp; Safety Permit #2026-14">
+                        </div>
+
+                        <div class="form-grid-2">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="entryThroughputPerMin">Entry Rate (p/min)</label>
+                                <input id="entryThroughputPerMin" name="entryThroughputPerMin" type="number" step="0.5" min="0.1"
+                                       class="form-control mono" th:value="${view.parameters.entryThroughputPerMin}"
+                                       th:disabled="${!view.canEditAssumptions}" placeholder="e.g., 60">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="ingressWindowMinutes">Ingress Window (min)</label>
+                                <input id="ingressWindowMinutes" name="ingressWindowMinutes" type="number" min="1" max="1440"
+                                       class="form-control mono" th:value="${view.parameters.ingressWindowMinutes}"
+                                       th:disabled="${!view.canEditAssumptions}" placeholder="e.g., 60">
+                            </div>
+                        </div>
+
+                        <div class="form-grid-2">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="exitThroughputPerMin">Exit Rate (p/min)</label>
+                                <input id="exitThroughputPerMin" name="exitThroughputPerMin" type="number" step="0.5" min="0.1"
+                                       class="form-control mono" th:value="${view.parameters.exitThroughputPerMin}"
+                                       th:disabled="${!view.canEditAssumptions}" placeholder="e.g., 80">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="egressWindowMinutes">Egress Window (min)</label>
+                                <input id="egressWindowMinutes" name="egressWindowMinutes" type="number" min="1" max="1440"
+                                       class="form-control mono" th:value="${view.parameters.egressWindowMinutes}"
+                                       th:disabled="${!view.canEditAssumptions}" placeholder="e.g., 45">
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="capacityNotes">Planner Notes</label>
+                            <textarea id="capacityNotes" name="notes" rows="2" class="form-control"
+                                      th:text="${view.parameters.notes}"
+                                      th:disabled="${!view.canEditAssumptions}"
+                                      placeholder="Document gate counts or holding assumptions..."></textarea>
+                        </div>
+
+                        <div th:if="${view.canEditAssumptions}">
+                            <button type="submit" class="btn btn-primary btn-sm">Recalculate &amp; Save Parameters</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Safety Reviewer Overall Capacity Verification -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="section-title">Safety Reviewer Determination</h2>
+                    <span class="badge"
+                          th:classappend="${view.calculation.effectiveReviewStatus.badgeClass}"
+                          th:text="${view.calculation.effectiveReviewStatus.displayName}">Pending Review</span>
+                </div>
+                <div class="card-body stack">
+                    <div th:if="${view.parameters.verifiedByName != null}" class="text-secondary" style="font-size: 12px;">
+                        Last recorded by <strong th:text="${view.parameters.verifiedByName}">Reviewer</strong>
+                        <span th:if="${view.parameters.verifiedAt != null}" class="mono"
+                              th:text="' on ' + ${@fmt.utc(view.parameters.verifiedAt)}"></span>
+                    </div>
+                    <p th:if="${view.parameters.reviewerNotes != null}" class="review-response-box"
+                       th:text="${view.parameters.reviewerNotes}">Reviewer notes</p>
+
+                    <form sec:authorize="hasAnyRole('ADMIN', 'SAFETY_REVIEWER')"
+                          th:action="@{/events/{id}/capacity/review(id=${event.id})}" method="post" class="stack">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="overallReviewStatus">Overall Review Determination</label>
+                            <select id="overallReviewStatus" name="reviewStatus" class="form-control">
+                                <option th:each="rs : ${capacityReviewStatuses}"
+                                        th:value="${rs.name()}"
+                                        th:text="${rs.displayName}"
+                                        th:selected="${view.parameters.persistedReviewStatus == rs}">Status</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="reviewerNotes">Reviewer Verification Notes</label>
+                            <textarea id="reviewerNotes" name="reviewerNotes" rows="2" class="form-control"
+                                      th:text="${view.parameters.reviewerNotes}"
+                                      placeholder="Note conditions or source-citation verification remarks..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-secondary btn-sm">Record Capacity Verification</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Full-Width Zone Density Assumptions Table -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <h2 class="section-title">Zone Density Assumptions &amp; Citations</h2>
+                <div class="text-muted" style="font-size: 12px;">
+                    Every gathering and holding zone requires explicit planner density entry, source citation, and safety reviewer verification.
+                </div>
+            </div>
+            <span class="mono text-muted" th:text="${#lists.size(view.calculation.zoneRows) + ' zones'}">0 zones</span>
+        </div>
+
+        <div class="card-body stack">
+            <details class="details-panel">
+                <summary>Non-Binding Reference Density Guide (Educational Only — Must Enter &amp; Cite Explicitly)</summary>
+                <div class="text-secondary" style="font-size: 12px; margin-top: 6px;">
+                    Reference planning literature (e.g., Green Guide / NDMA Crowd Management Guidance / Fruin Levels of Service) commonly discusses loose standing concourses around <span class="mono">1.0 – 2.0 p/m²</span>, queuing/holding lanes around <span class="mono">1.5 – 2.5 p/m²</span>, and static viewing areas up to locally permitted thresholds. These figures are non-binding examples only; enter the specific density authorized for your site and cite the guiding document.
+                </div>
+            </details>
+
+            <div th:if="${#lists.isEmpty(view.calculation.zoneRows)}" class="empty-state">
+                <p>No functional zones defined yet. Paint or trace zones in Venue Plan &rarr; Zones &amp; Grid first.</p>
+                <a th:href="@{/events/{id}/venue(id=${event.id}, mode='zones')}" class="btn btn-primary btn-sm">
+                    Open Zones &amp; Grid Workspace
+                </a>
+            </div>
+
+            <div th:if="${!#lists.isEmpty(view.calculation.zoneRows)}" class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Zone</th>
+                            <th>Role</th>
+                            <th class="num">Net Usable (m²)</th>
+                            <th class="num">Density (p/m²)</th>
+                            <th class="num">Zone Cap.</th>
+                            <th>Source Citation &amp; Approver</th>
+                            <th>Review Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="row : ${view.calculation.zoneRows}">
+                            <td>
+                                <span class="zone-swatch-inline" th:style="'background:' + ${row.fillColor}"></span>
+                                <strong class="mono" th:text="${row.zoneCode}">AUD-1</strong>
+                                <div class="text-secondary" style="font-size: 12px;" th:text="${row.name}">Audience</div>
+                                <span th:if="${row.isolated}" class="badge badge-critical">Isolated</span>
+                            </td>
+                            <td>
+                                <div th:text="${row.zoneTypeName}">Audience</div>
+                                <div class="text-muted mono" style="font-size: 11px;" th:text="${row.capacityBucket.name()}">GATHERING</div>
+                            </td>
+                            <td class="num" th:text="${#numbers.formatDecimal(row.usableZoneAreaSqm, 1, 2)}">0.00</td>
+                            <td class="num">
+                                <span th:if="${!row.capacityBearing}" class="text-muted">N/A</span>
+                                <span th:if="${row.capacityBearing and row.densityPersonsPerSqm != null}"
+                                      th:text="${#numbers.formatDecimal(row.densityPersonsPerSqm, 1, 2)}">2.00</span>
+                                <span th:if="${row.capacityBearing and row.densityPersonsPerSqm == null}"
+                                      class="badge badge-low">Required</span>
+                            </td>
+                            <td class="num">
+                                <span th:if="${!row.capacityBearing}" class="text-muted">—</span>
+                                <strong th:if="${row.capacityBearing and row.computedCapacity != null}"
+                                        th:text="${#numbers.formatInteger(row.computedCapacity, 1, 'COMMA')}">0</strong>
+                                <span th:if="${row.capacityBearing and row.computedCapacity == null}" class="text-muted">—</span>
+                            </td>
+                            <td>
+                                <div th:if="${row.capacityBearing}">
+                                    <div th:if="${row.sourceCitation != null}" style="font-size: 12px;" th:text="${row.sourceCitation}">Citation</div>
+                                    <div th:if="${row.sourceCitation == null}" class="text-muted" style="font-size: 12px;">No citation recorded</div>
+                                    <div th:if="${row.approvedByName != null or row.verifiedByName != null or row.approvedAt != null}" class="text-muted" style="font-size: 11px;">
+                                        <span th:if="${row.approvedByName != null}" th:text="'Approver: ' + ${row.approvedByName}"></span>
+                                        <span th:if="${row.verifiedByName != null}" th:text="' · Verified: ' + ${row.verifiedByName}"></span>
+                                        <span th:if="${row.approvedAt != null}" class="mono" th:text="' (' + ${@fmt.utc(row.approvedAt)} + ')'"></span>
+                                    </div>
+                                    <div th:if="${row.reviewerNote != null}" class="text-secondary" style="font-size: 11px;"
+                                         th:text="'Note: ' + ${row.reviewerNote}"></div>
+                                </div>
+                                <span th:if="${!row.capacityBearing}" class="text-muted" style="font-size: 12px;">Non-capacity utility/circulation</span>
+                            </td>
+                            <td>
+                                <span th:if="${row.capacityBearing}" class="badge"
+                                      th:classappend="${row.reviewStatus.badgeClass}"
+                                      th:text="${row.reviewStatus.displayName}">Pending Review</span>
+                                <span th:if="${!row.capacityBearing}" class="badge badge-neutral">Non-Capacity</span>
+                            </td>
+                            <td>
+                                <div th:if="${row.capacityBearing}" class="stack" style="gap: 6px; min-width: 220px;">
+                                    <details sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')" class="details-panel">
+                                        <summary th:text="${row.densityPersonsPerSqm != null ? 'Edit Density &amp; Citation' : 'Set Density &amp; Citation'}">Set Density</summary>
+                                        <form th:action="@{/events/{id}/capacity/zones/{zid}(id=${event.id}, zid=${row.zoneId})}"
+                                              method="post" class="stack" style="margin-top: 6px; gap: 6px;">
+                                            <input name="densityPersonsPerSqm" type="number" step="0.1" min="0.05" max="10" required
+                                                   class="form-control mono" th:value="${row.densityPersonsPerSqm}"
+                                                   placeholder="Density p/m² (e.g., 1.8)">
+                                            <input name="sourceCitation" type="text" maxlength="300" required
+                                                   class="form-control" th:value="${row.sourceCitation}"
+                                                   placeholder="Source citation (mandatory)">
+                                            <input name="approvedByName" type="text" maxlength="150"
+                                                   class="form-control" th:value="${row.approvedByName}"
+                                                   placeholder="Designated approver name">
+                                            <button type="submit" class="btn btn-primary btn-sm">Save Assumption</button>
+                                        </form>
+                                    </details>
+
+                                    <details sec:authorize="hasAnyRole('ADMIN', 'SAFETY_REVIEWER')" class="details-panel">
+                                        <summary>Reviewer Verify / Flag</summary>
+                                        <form th:action="@{/events/{id}/capacity/zones/{zid}/review(id=${event.id}, zid=${row.zoneId})}"
+                                              method="post" class="stack" style="margin-top: 6px; gap: 6px;">
+                                            <select name="reviewStatus" class="form-control">
+                                                <option th:each="ars : ${assumptionReviewStatuses}"
+                                                        th:value="${ars.name()}"
+                                                        th:text="${ars.displayName}"
+                                                        th:selected="${row.reviewStatus == ars}">Status</option>
+                                            </select>
+                                            <input name="reviewerNote" type="text" maxlength="1000"
+                                                   class="form-control" th:value="${row.reviewerNote}"
+                                                   placeholder="Reviewer note or revision request">
+                                            <button type="submit" class="btn btn-secondary btn-sm">Apply Review</button>
+                                        </form>
+                                    </details>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <div th:if="${activeSubTab == 'arrivals'}" th:replace="~{capacity/_arrivals :: arrivalsTab}"></div>
+    <div th:if="${activeSubTab == 'staff'}" th:replace="~{capacity/_staff :: staffTab}"></div>
+</section>
+</body>
+</html>

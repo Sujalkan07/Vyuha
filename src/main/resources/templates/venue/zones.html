@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/workspace-shell :: head(${event.name} + ' — Zones & Grid')}"></head>
+<body th:replace="~{fragments/workspace-shell :: workspace(${event.name} + ' — Zones & Grid', 'events', ${event.id}, 'venue', ~{::workspaceBar}, ~{::toolRail}, ~{::canvasArea}, ~{::inspectorBody}, ~{::statusStrip})}">
+
+<th:block th:fragment="workspaceBar">
+    <div class="workspace-bar-group">
+        <div class="mode-switch" role="tablist" aria-label="Venue workspace modes">
+            <a th:href="@{/events/{id}/venue(id=${event.id}, mode='site')}" class="mode-pill">1. Site Plan</a>
+            <button type="button" class="mode-pill active" aria-selected="true">2. Zones &amp; Grid</button>
+            <a th:href="@{/events/{id}/venue(id=${event.id}, mode='infrastructure')}" class="mode-pill">3. Infrastructure</a>
+            <a th:href="@{/events/{id}/venue(id=${event.id}, mode='pathways')}" class="mode-pill">4. Pathways</a>
+        </div>
+
+        <button type="button" id="undoBtn" class="btn btn-secondary btn-sm" title="Undo (Ctrl+Z)" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>
+            </svg>
+        </button>
+        <button type="button" id="redoBtn" class="btn btn-secondary btn-sm" title="Redo (Ctrl+Y)" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>
+            </svg>
+        </button>
+    </div>
+
+    <div class="workspace-bar-group">
+        <span id="gridStatusPill" class="scale-pill mono"
+              th:text="'Grid: ' + ${#numbers.formatDecimal(initialState.gridConfig.cellSizeMeters, 1, 1)} + ' m · ' + ${initialState.gridConfig.totalCells} + ' cells'">
+            Grid: 5.0 m · 0 cells
+        </span>
+        <button type="button" id="toggleInspectorBtn" class="btn btn-ghost btn-sm">Inspector</button>
+        <button th:if="${canEdit}" type="button" id="saveZonesBtn" class="btn btn-primary btn-sm">Save</button>
+        <span th:unless="${canEdit}" class="badge badge-neutral">Reviewer Read-Only</span>
+    </div>
+</th:block>
+
+<th:block th:fragment="toolRail">
+    <button type="button" class="tool-rail-btn active" data-tool="SELECT" title="Select Zone / Pan">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M3 3l7 17 2.5-6.5L19 11 3 3z"/>
+        </svg>
+    </button>
+    <button type="button" class="tool-rail-btn" data-tool="PAINT_CELLS" title="Paint Grid Cells"
+            th:disabled="${!canEdit}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/>
+            <rect x="3" y="13" width="8" height="8"/><path d="M13 17h8M17 13v8"/>
+        </svg>
+    </button>
+    <button type="button" class="tool-rail-btn" data-tool="ERASE_CELLS" title="Erase Staged or Selected Zone Cells"
+            th:disabled="${!canEdit}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M20 20H7L3 16c-.8-.8-.8-2 0-2.8L13.2 3c.8-.8 2-.8 2.8 0l5 5c.8.8.8 2 0 2.8L12 20"/>
+        </svg>
+    </button>
+    <button type="button" class="tool-rail-btn" data-tool="DRAW_ZONE" title="Draw Freeform Zone Polygon"
+            th:disabled="${!canEdit}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <polygon points="5,4 19,6 20,19 4,18"/>
+        </svg>
+    </button>
+
+    <div class="tool-rail-sep"></div>
+
+    <button type="button" id="toggleGridOverlayBtn" class="tool-rail-btn active" title="Toggle Clipped Grid Cells">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>
+        </svg>
+    </button>
+</th:block>
+
+<th:block th:fragment="canvasArea">
+    <div id="zonesWorkspaceRoot"
+         style="position: relative; width: 100%; height: 100%;"
+         th:attr="data-event-id=${event.id},data-can-edit=${canEdit},data-initial-state=${initialStateJson}">
+        <canvas id="zonesCanvas" aria-label="Interactive grid and functional zone layout canvas"></canvas>
+
+        <div id="canvasHintBar" class="canvas-hint-bar" style="display: none;">
+            <span id="canvasHintText">Click or drag grid cells.</span>
+        </div>
+
+        <div id="canvasEmptyOverlay" class="canvas-empty-overlay" style="display: none;">
+            <div class="canvas-empty-card stack">
+                <p id="canvasEmptyText" class="text-secondary" style="font-size: 13px;">
+                    No outer venue boundary drawn yet. Draw the site perimeter in Site Plan mode first.
+                </p>
+                <div style="pointer-events: auto;">
+                    <a th:href="@{/events/{id}/venue(id=${event.id}, mode='site')}" class="btn btn-primary btn-sm">
+                        Go to 1. Site Plan
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="zoom-controls" aria-label="Canvas zoom controls">
+            <button type="button" id="zoomOutBtn" class="btn btn-ghost btn-sm" title="Zoom Out">-</button>
+            <button type="button" id="zoom100Btn" class="btn btn-ghost btn-sm mono" title="Reset Zoom">100%</button>
+            <button type="button" id="zoomInBtn" class="btn btn-ghost btn-sm" title="Zoom In">+</button>
+            <button type="button" id="zoomFitBtn" class="btn btn-ghost btn-sm" title="Fit Site Plan">Fit</button>
+        </div>
+
+        <div class="canvas-legend">
+            <div class="legend-header">
+                <strong>Zone Color Legend</strong>
+                <button type="button" id="legendToggleBtn" class="legend-toggle-btn">Hide</button>
+            </div>
+            <div id="legendList" class="legend-list">
+                <div class="legend-item" th:each="zType : ${zoneTypes}">
+                    <span class="legend-swatch"
+                          th:style="'background:' + ${zType.fillColor} + '; border-color:' + ${zType.strokeColor}"></span>
+                    <span th:text="${zType.displayName}">Audience</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="module" th:src="@{/js/zones-editor.js}"></script>
+</th:block>
+
+<th:block th:fragment="inspectorBody">
+    <div class="inspector-tabs" role="tablist">
+        <button type="button" class="inspector-tab active" data-tab="properties">Properties</button>
+        <button type="button" class="inspector-tab" data-tab="summary">Summary</button>
+        <button type="button" class="inspector-tab" data-tab="findings">
+            Findings <span id="findingsCountBadge" class="badge badge-neutral" style="margin-left: 4px;"
+                           th:text="${#lists.size(initialState.findings)}">0</span>
+        </button>
+    </div>
+
+    <div class="inspector-body">
+        <!-- Tab 1: Properties -->
+        <div class="inspector-pane active" data-pane="properties">
+            <div class="inspector-section">
+                <div class="inspector-section-title">Clipped Square Grid</div>
+                <div class="grid-preset-row">
+                    <button type="button" class="btn btn-secondary btn-sm grid-preset-btn" data-size="2" th:disabled="${!canEdit}">2 m</button>
+                    <button type="button" class="btn btn-secondary btn-sm grid-preset-btn" data-size="5" th:disabled="${!canEdit}">5 m</button>
+                    <button type="button" class="btn btn-secondary btn-sm grid-preset-btn" data-size="10" th:disabled="${!canEdit}">10 m</button>
+                    <button type="button" class="btn btn-secondary btn-sm grid-preset-btn" data-size="20" th:disabled="${!canEdit}">20 m</button>
+                </div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="gridCellSizeInput">Cell Size (2.0 – 20.0 m)</label>
+                    <input id="gridCellSizeInput" type="number" step="0.5" min="2" max="20"
+                           class="form-control mono"
+                           th:value="${initialState.gridConfig.cellSizeMeters}"
+                           th:disabled="${!canEdit}">
+                </div>
+
+                <details class="details-panel">
+                    <summary>Grid Origin &amp; Rotation</summary>
+                    <div class="form-grid-2" style="margin-top: 6px;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="gridOriginXInput">Origin X (m)</label>
+                            <input id="gridOriginXInput" type="number" step="0.5" class="form-control mono"
+                                   th:value="${initialState.gridConfig.originX}" th:disabled="${!canEdit}">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="gridOriginYInput">Origin Y (m)</label>
+                            <input id="gridOriginYInput" type="number" step="0.5" class="form-control mono"
+                                   th:value="${initialState.gridConfig.originY}" th:disabled="${!canEdit}">
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-top: 6px; margin-bottom: 0;">
+                        <label class="form-label" for="gridRotationInput">Rotation (deg)</label>
+                        <input id="gridRotationInput" type="number" step="1" min="-180" max="180" class="form-control mono"
+                               th:value="${initialState.gridConfig.rotationDeg}" th:disabled="${!canEdit}">
+                    </div>
+                </details>
+
+                <button th:if="${canEdit}" type="button" id="applyGridConfigBtn" class="btn btn-secondary btn-sm">
+                    Apply Grid Settings
+                </button>
+            </div>
+
+            <!-- Zone Painter / New Zone Controls -->
+            <div class="inspector-section" th:if="${canEdit}">
+                <div class="inspector-section-title">Paint or Trace Zone</div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="newZoneType">Zone Category</label>
+                    <select id="newZoneType" class="form-control">
+                        <option th:each="zType : ${zoneTypes}"
+                                th:value="${zType.name()}"
+                                th:text="${zType.displayName}">Audience</option>
+                    </select>
+                </div>
+                <div class="form-grid-2">
+                    <div class="form-group" style="margin-bottom: 4px;">
+                        <label class="form-label" for="newZoneCode">Code (auto if blank)</label>
+                        <input id="newZoneCode" type="text" maxlength="32" class="form-control mono" placeholder="AUD-1">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 4px;">
+                        <label class="form-label" for="newZoneName">Zone Name</label>
+                        <input id="newZoneName" type="text" maxlength="160" class="form-control" placeholder="Main Lawn">
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="newZoneNotes">Notes (optional)</label>
+                    <input id="newZoneNotes" type="text" maxlength="500" class="form-control" placeholder="Standing zone / access note">
+                </div>
+
+                <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px;">
+                    <span class="text-secondary">Staged Grid Cells:</span>
+                    <strong id="stagedCellCount" class="mono">0 cells</strong>
+                </div>
+
+                <div class="form-actions" style="margin-top: 4px;">
+                    <button type="button" id="createZoneFromCellsBtn" class="btn btn-primary btn-sm" disabled>
+                        Create Zone from Cells
+                    </button>
+                    <button type="button" id="addCellsToZoneBtn" class="btn btn-secondary btn-sm" style="display: none;" disabled>
+                        Add to Selected
+                    </button>
+                    <button type="button" id="clearStagedCellsBtn" class="btn btn-ghost btn-sm" disabled>
+                        Clear
+                    </button>
+                </div>
+            </div>
+
+            <!-- Selected Zone Editor -->
+            <div id="selectedZoneSection" class="inspector-section" style="display: none;">
+                <div class="inspector-section-title">Selected Functional Zone</div>
+                <div id="selectedZoneMeta" class="mono text-secondary" style="font-size: 12px;">0.00 m² usable</div>
+                <div class="form-grid-2">
+                    <div class="form-group" style="margin-bottom: 4px;">
+                        <label class="form-label" for="selectedZoneCode">Code</label>
+                        <input id="selectedZoneCode" type="text" maxlength="32" class="form-control mono" th:disabled="${!canEdit}">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 4px;">
+                        <label class="form-label" for="selectedZoneType">Category</label>
+                        <select id="selectedZoneType" class="form-control" th:disabled="${!canEdit}">
+                            <option th:each="zType : ${zoneTypes}"
+                                    th:value="${zType.name()}"
+                                    th:text="${zType.displayName}">Audience</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="selectedZoneName">Name</label>
+                    <input id="selectedZoneName" type="text" maxlength="160" class="form-control" th:disabled="${!canEdit}">
+                </div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="selectedZoneNotes">Notes</label>
+                    <input id="selectedZoneNotes" type="text" maxlength="500" class="form-control" th:disabled="${!canEdit}">
+                </div>
+                <div class="form-actions" style="margin-top: 4px;" th:if="${canEdit}">
+                    <button type="button" id="updateSelectedZoneBtn" class="btn btn-secondary btn-sm">Update Zone</button>
+                    <button type="button" id="removeCellsFromZoneBtn" class="btn btn-ghost btn-sm" style="display: none;">Remove Staged Cells</button>
+                    <button type="button" id="deleteSelectedZoneBtn" class="btn btn-danger btn-sm">Delete</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: Summary -->
+        <div class="inspector-pane" data-pane="summary">
+            <div class="inspector-section">
+                <div class="inspector-section-title">Zone Coverage Summary</div>
+                <div class="progress-track">
+                    <div id="zoneCoverageBar" class="progress-fill" style="width: 0%;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 11px;" class="text-secondary">
+                    <span id="zoneAssignedPct" class="mono">0.0% usable assigned</span>
+                    <span id="zoneCountLabel" class="mono">0 zones</span>
+                </div>
+
+                <table class="data-table compact-table">
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th class="num">Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Gross Site Area</td>
+                            <td id="covGrossArea" class="num mono">0.00 m²</td>
+                        </tr>
+                        <tr>
+                            <td>Net Usable Area</td>
+                            <td id="covUsableArea" class="num mono">0.00 m²</td>
+                        </tr>
+                        <tr>
+                            <td>Assigned Usable</td>
+                            <td id="covAssignedArea" class="num mono">0.00 m²</td>
+                        </tr>
+                        <tr>
+                            <td>Unassigned Usable</td>
+                            <td id="covUnassignedArea" class="num mono">0.00 m²</td>
+                        </tr>
+                        <tr>
+                            <td>Zone Overlaps</td>
+                            <td id="covOverlapArea" class="num mono">0.00 m²</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <a th:href="@{/events/{id}/capacity(id=${event.id})}" class="btn btn-secondary btn-sm">
+                    Open Capacity Review &rarr;
+                </a>
+            </div>
+
+            <div class="inspector-section">
+                <div class="inspector-section-title">Functional Zones</div>
+                <div id="zonesList" style="display: flex; flex-direction: column; gap: 6px;"></div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Findings -->
+        <div class="inspector-pane" data-pane="findings">
+            <div class="banner banner-info" style="font-size: 12px;">
+                Automated zone integrity warnings highlight overlaps, unassigned areas, and cut-off pockets for human review.
+            </div>
+            <div id="zoneFindingsList" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        </div>
+    </div>
+</th:block>
+
+<th:block th:fragment="statusStrip">
+    <div class="status-group">
+        <span id="cursorCoordsReadout" class="mono">X: 0.0 m, Y: 0.0 m</span>
+        <span id="statusLayerText">Zones &amp; Grid · SELECT</span>
+        <span id="workspaceMessage" class="text-secondary"></span>
+    </div>
+    <div class="status-group">
+        <button type="button" class="btn btn-ghost btn-sm" data-assistant-toggle="true" title="Open Planning Assistant Drawer">
+            Planning Assistant
+        </button>
+    </div>
+</th:block>
+
+</body>
+</html>

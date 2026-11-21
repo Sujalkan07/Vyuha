@@ -1,0 +1,822 @@
+/* Layout B: Canvas Workspace (fragments/workspace-shell.html) */
+.workspace-page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.workspace-shell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-page);
+}
+
+.workspace-bar {
+  height: 44px;
+  flex-shrink: 0;
+  background-color: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-3);
+  gap: var(--space-3);
+}
+
+.workspace-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.tool-rail {
+  width: 52px;
+  flex-shrink: 0;
+  background-color: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-2) 0;
+  gap: var(--space-1);
+  overflow-y: auto;
+}
+
+.tool-rail-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.tool-rail-btn:hover {
+  background-color: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+.tool-rail-btn.active {
+  background-color: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.canvas-viewport {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  background-color: var(--bg-subtle);
+  background-image: radial-gradient(var(--border-strong) 1px, transparent 1px);
+  background-size: 16px 16px;
+  overflow: hidden;
+}
+
+.canvas-viewport canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.zoom-controls {
+  position: absolute;
+  left: var(--space-3);
+  bottom: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2px;
+}
+
+.canvas-legend {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+  font-size: 12px;
+  max-width: 240px;
+}
+
+.inspector-panel {
+  width: 320px;
+  flex-shrink: 0;
+  background-color: var(--bg-surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.inspector-panel.collapsed {
+  width: 0;
+  border-left: none;
+  overflow: hidden;
+}
+
+.inspector-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background-color: var(--bg-page);
+}
+
+.inspector-tab {
+  flex: 1;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+
+.inspector-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  background-color: var(--bg-surface);
+}
+
+.inspector-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-3);
+}
+
+.workspace-status {
+  height: 28px;
+  flex-shrink: 0;
+  background-color: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  padding: 0 var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* Layout C: Mobile-Friendly Field View (fragments/field-layout.html) */
+.field-navbar {
+  height: var(--nav-height);
+  background-color: var(--bg-nav);
+  color: var(--text-inverse);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-3);
+  gap: var(--space-2);
+}
+
+.field-container {
+  max-width: 540px;
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+
+.field-tap-target {
+  min-height: 44px;
+}
+
+/* Phase 3: Venue Workspace Controls & Inspector Panels (strictly using vyuha-tokens.css) */
+.workspace-bar-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.mode-switch {
+  display: inline-flex;
+  align-items: center;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2px;
+  gap: 2px;
+}
+
+.mode-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.mode-pill:hover:not(:disabled) {
+  color: var(--text-primary);
+  background-color: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+}
+
+.mode-pill.active {
+  background-color: var(--bg-surface);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.mode-pill:disabled {
+  color: var(--text-muted);
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.scale-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: var(--radius);
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.tool-rail-sep {
+  width: 24px;
+  height: 1px;
+  background-color: var(--border);
+  margin: var(--space-1) 0;
+}
+
+.tool-rail-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.canvas-hint-bar {
+  position: absolute;
+  top: var(--space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--bg-nav);
+  color: var(--text-inverse);
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.canvas-empty-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  padding: var(--space-4);
+}
+
+.canvas-empty-card {
+  background-color: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-4) var(--space-6);
+  text-align: center;
+  max-width: 360px;
+}
+
+.legend-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.legend-toggle-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.legend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: var(--space-2);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(15, 23, 42, 0.25);
+  flex-shrink: 0;
+}
+
+.inspector-pane {
+  display: none;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.inspector-pane.active {
+  display: flex;
+}
+
+.inspector-section {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  background-color: var(--bg-page);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.inspector-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+}
+
+.mode-radio-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.mode-choice-btn {
+  padding: 7px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background-color: var(--bg-surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: center;
+}
+
+.mode-choice-btn.active {
+  background-color: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.breakdown-bar-track {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  display: flex;
+}
+
+.breakdown-seg-usable {
+  background-color: var(--accent);
+  height: 100%;
+}
+
+.breakdown-seg-restricted {
+  background-color: var(--sev-high);
+  height: 100%;
+}
+
+.breakdown-seg-corridor {
+  background-color: var(--sev-info);
+  height: 100%;
+}
+
+.exclusion-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--bg-surface);
+  cursor: pointer;
+}
+
+.exclusion-row.selected {
+  border-color: var(--accent);
+  background-color: var(--accent-soft);
+}
+
+.finding-card {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--bg-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.status-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.compact-table th,
+.compact-table td {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+/* Phase 4: Zones & Grid Workspace Helpers */
+.grid-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.grid-preset-btn.active {
+  background-color: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.zone-swatch-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid rgba(15, 23, 42, 0.25);
+  flex-shrink: 0;
+}
+
+/* Phase 5: Infrastructure Placement & Conflict Findings Helpers */
+.rotate-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.finding-review-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.revision-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background-color: var(--bg-surface);
+  font-size: 11px;
+}
+
+.revision-row.current {
+  border-color: var(--accent);
+  background-color: var(--accent-soft);
+}
+
+.infra-swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  border: 1.5px solid rgba(15, 23, 42, 0.35);
+  flex-shrink: 0;
+}
+
+/* Phase 6: Pathways & Movement Network Workspace Helpers */
+.layer-toggle-bar {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  background-color: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 3px 6px;
+  z-index: 9;
+}
+
+.layer-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.layer-pill.active {
+  background-color: var(--bg-subtle);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.layer-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.network-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--bg-surface);
+  cursor: pointer;
+}
+
+.network-item-row.selected {
+  border-color: var(--accent);
+  background-color: var(--accent-soft);
+}
+
+/* Phase 9: Crowd Simulation Playback & Before-and-After Comparison Helpers */
+.sim-stage-shell {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.sim-disclaimer-strip {
+  flex-shrink: 0;
+  padding: 6px var(--space-3);
+  background-color: var(--sev-info-bg);
+  color: #0C4A6E;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid var(--sev-info);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.sim-canvas-stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.sim-playback-wrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.sim-compare-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sim-compare-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background-color: var(--border);
+}
+
+.sim-compare-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background-color: var(--bg-subtle);
+  background-image: radial-gradient(var(--border-strong) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+.sim-compare-header {
+  flex-shrink: 0;
+  height: 30px;
+  padding: 0 var(--space-3);
+  background-color: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 12px;
+}
+
+.sim-compare-canvas-box {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.sim-delta-bar {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--bg-surface);
+  border-top: 1px solid var(--border);
+}
+
+.sim-delta-card {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--bg-page);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sim-delta-card.is-improved {
+  border-left: 3px solid var(--state-verified);
+}
+
+.sim-delta-card.is-worse {
+  border-left: 3px solid var(--sev-critical);
+}
+
+.sim-delta-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sim-delta-values {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.sim-delta-sub {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sim-playback-bar {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 6px var(--space-3);
+  background-color: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.sim-speed-group {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--bg-subtle);
+  padding: 2px;
+  gap: 2px;
+}
+
+.sim-speed-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 7px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.sim-speed-btn.active {
+  background-color: var(--bg-surface);
+  color: var(--accent);
+}
+
+.sim-scrubber {
+  flex: 1 1 160px;
+  min-width: 120px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.sim-telemetry-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.sim-snapshot-card {
+  display: flex;
+  gap: var(--space-2);
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--bg-surface);
+}
+
+.sim-snapshot-thumb {
+  width: 72px;
+  height: 46px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background-color: var(--bg-subtle);
+  flex-shrink: 0;
+}
+
+.sim-snapshot-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sim-hotspot-card {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--bg-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+@media (max-width: 1180px) {
+  .sim-delta-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

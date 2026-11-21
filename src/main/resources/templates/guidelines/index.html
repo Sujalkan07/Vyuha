@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Safety Guidelines')}"></head>
+<body th:replace="~{fragments/layout :: page('Safety Guidelines', 'guidelines', null, null, ~{::section})}">
+<section class="stack" id="guidelinesPageRoot">
+    <div class="page-header">
+        <div>
+            <h1>Safety Guidelines Reference</h1>
+            <p class="page-header-subtitle">
+                100% offline BM25 search across curated crowd-management, egress geometry, queue holding, and emergency access principles.
+            </p>
+        </div>
+        <div class="badge-row">
+            <span class="badge badge-info mono"
+                  th:text="${overview.documentCount} + ' documents · ' + ${overview.totalSections} + ' sections'">
+                4 documents · 22 sections
+            </span>
+            <span class="badge badge-neutral" th:text="${attributionTag}">AI/Assistant Note — Human Review Required</span>
+        </div>
+    </div>
+
+    <div class="banner banner-info">
+        <strong th:text="${attributionTag}">AI/Assistant Note — Human Review Required</strong> —
+        <span th:text="${searchResult.disclaimer}">
+            Guidance excerpts are provided for planning reference only and do not replace statutory permits or professional safety review.
+        </span>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form id="guidelineSearchForm" th:action="@{/guidelines}" method="get" class="filter-bar">
+                <div class="filter-field filter-field-search">
+                    <label class="form-label" for="guidelineQueryInput">Search Keywords or Safety Topic</label>
+                    <input id="guidelineQueryInput" name="q" type="text" class="form-control"
+                           th:value="${query}"
+                           placeholder="e.g., ambulance lane width, contra-flow, dead end corridor, queue holding">
+                </div>
+                <div class="filter-field">
+                    <label class="form-label" for="guidelineCategorySelect">Category</label>
+                    <select id="guidelineCategorySelect" name="category" class="form-control">
+                        <option value="ALL" th:selected="${selectedCategory == 'ALL'}">All Categories</option>
+                        <option th:each="cat : ${overview.categories}"
+                                th:value="${cat.category}"
+                                th:text="${cat.displayName + ' (' + cat.sectionCount + ')'}"
+                                th:selected="${selectedCategory == cat.category}">Category</option>
+                    </select>
+                </div>
+                <div class="filter-actions">
+                    <button type="submit" class="btn btn-primary">Search</button>
+                    <a th:href="@{/guidelines}" class="btn btn-secondary">Reset</a>
+                </div>
+            </form>
+
+            <div class="assistant-chip-row" style="margin-top: 12px;" aria-label="Quick topic queries">
+                <button type="button" class="assistant-chip guideline-topic-chip" data-query="ambulance lane 3.5 m">Ambulance Lane Width</button>
+                <button type="button" class="assistant-chip guideline-topic-chip" data-query="contra-flow entry exit separation">Contra-Flow Separation</button>
+                <button type="button" class="assistant-chip guideline-topic-chip" data-query="dead end corridor 10 m">Dead-End Corridors</button>
+                <button type="button" class="assistant-chip guideline-topic-chip" data-query="merge convergence 75 percent">Merge Width Rule</button>
+                <button type="button" class="assistant-chip guideline-topic-chip" data-query="holding zone queue overflow">Queue Holding Overflow</button>
+                <button type="button" class="assistant-chip guideline-topic-chip" data-query="segregated live occupancy stale">Live Occupancy Sources</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid-2col">
+        <div class="stack">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Matching Guideline Excerpts</h2>
+                    <span id="guidelineMatchSummary" class="mono text-secondary" style="font-size: 12px;"
+                          th:text="${searchResult.totalMatches} + ' match(es)'">0 match(es)</span>
+                </div>
+                <div class="card-body">
+                    <div id="guidelineResultsList" class="stack" style="gap: 12px;">
+                        <div th:if="${#lists.isEmpty(searchResult.hits)}" class="empty-state">
+                            <p>No guideline sections matched that search query. Try broader keywords such as width, exit, queue, or ambulance.</p>
+                        </div>
+
+                        <article th:each="hit : ${searchResult.hits}" class="guideline-card">
+                            <div class="guideline-card-top">
+                                <div class="badge-row">
+                                    <span class="badge badge-info" th:text="${hit.sectionNumber}">Section 3.2</span>
+                                    <span class="badge badge-neutral" th:text="${hit.categoryDisplayName}">Crowd Management</span>
+                                </div>
+                                <span th:if="${hit.score > 0}" class="mono text-muted" style="font-size: 12px;"
+                                      th:text="'BM25: ' + ${#numbers.formatDecimal(hit.score, 1, 2)}">BM25: 1.00</span>
+                            </div>
+                            <h3 th:text="${hit.sectionTitle}">Section Title</h3>
+                            <div class="text-secondary" style="font-size: 12px;">
+                                <strong th:text="${hit.documentTitle}">Document Title</strong>
+                                <span> · </span>
+                                <span th:text="${hit.authority}">Authority</span>
+                                <span class="mono" th:text="' (' + ${hit.publicationYear} + ')'">(2014)</span>
+                            </div>
+                            <p style="font-size: 13px;" th:text="${hit.summary}">Summary</p>
+                            <blockquote class="guideline-quote" th:text="'&ldquo;' + ${hit.verbatimQuote} + '&rdquo;'">
+                                &ldquo;Verbatim citation quote&rdquo;
+                            </blockquote>
+                        </article>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <aside class="stack">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Indexed Corpus Documents</h2>
+                    <span class="badge badge-neutral mono" th:text="${overview.documentCount}">4</span>
+                </div>
+                <div class="card-body stack" style="gap: 10px;">
+                    <div th:each="doc : ${overview.documents}" class="review-entry">
+                        <div class="review-entry-header">
+                            <strong style="font-size: 13px;" th:text="${doc.documentTitle}">Document Title</strong>
+                            <span class="badge badge-neutral mono" th:text="${doc.sectionCount + ' sec'}">6 sec</span>
+                        </div>
+                        <div class="text-secondary" style="font-size: 12px;"
+                             th:text="${doc.authority + ' (' + doc.publicationYear + ')'}">Authority</div>
+                        <div class="badge-row">
+                            <span class="badge badge-info" th:text="${doc.categoryDisplayName}">Category</span>
+                            <span class="mono text-muted" style="font-size: 11px;" th:text="${doc.documentId}">ID</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <script type="module" th:src="@{/js/guidelines-search.js}"></script>
+</section>
+</body>
+</html>

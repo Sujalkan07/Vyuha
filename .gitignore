@@ -1,0 +1,10 @@
+target/
+data/
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+project_spec.md
+design.md
+development.md

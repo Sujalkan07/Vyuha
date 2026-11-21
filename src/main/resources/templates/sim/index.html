@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/workspace-shell :: head(${event.name} + ' — Simulation')}"></head>
+<body th:replace="~{fragments/workspace-shell :: workspace(${event.name} + ' — Simulation', 'events', ${event.id}, 'simulation', ~{::workspaceBar}, ~{::toolRail}, ~{::canvasArea}, ~{::inspectorBody}, ~{::statusStrip})}">
+
+<th:block th:fragment="workspaceBar">
+    <div class="workspace-bar-group">
+        <div class="mode-switch" role="tablist" aria-label="Simulation view mode">
+            <button type="button" id="modePlaybackBtn" class="mode-pill active" aria-selected="true">
+                Live Playback
+            </button>
+            <button type="button" id="modeCompareBtn" class="mode-pill" aria-selected="false">
+                Before / After Compare
+            </button>
+        </div>
+
+        <label for="barScenarioSelect" class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;">Scenario</label>
+        <select id="barScenarioSelect" class="form-control" style="width: auto; padding: 4px 8px; font-size: 12px;">
+            <option th:each="sc : ${scenarios}"
+                    th:value="${sc.name()}"
+                    th:text="${sc.displayName}">Normal Operations</option>
+        </select>
+
+        <span id="simStatusPill" class="scale-pill mono"
+              th:text="${#lists.size(workspace.snapshots)} + ' snapshots · ' + ${#lists.size(workspace.runs)} + ' runs'">
+            0 snapshots · 0 runs
+        </span>
+    </div>
+
+    <div class="workspace-bar-group">
+        <button th:if="${canManageSnapshots}" type="button" id="openSnapshotDialogBtn" class="btn btn-secondary btn-sm">
+            Capture Snapshot
+        </button>
+        <button type="button" id="barRunSimBtn" class="btn btn-primary btn-sm"
+                th:disabled="${!workspace.layoutReadyForSimulation}">
+            Run Simulation
+        </button>
+        <button type="button" id="toggleInspectorBtn" class="btn btn-ghost btn-sm">Inspector</button>
+    </div>
+</th:block>
+
+<th:block th:fragment="toolRail">
+    <button type="button" id="railPlayPauseBtn" class="tool-rail-btn" title="Play / Pause Simulation">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <polygon points="6 4 20 12 6 20 6 4"/>
+        </svg>
+    </button>
+    <button type="button" id="railResetBtn" class="tool-rail-btn" title="Reset Playback to t=0">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>
+        </svg>
+    </button>
+
+    <div class="tool-rail-sep"></div>
+
+    <button type="button" id="toggleHeatmapBtn" class="tool-rail-btn active" title="Toggle Density Heatmap Overlay">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+        </svg>
+    </button>
+    <button type="button" id="toggleAgentsBtn" class="tool-rail-btn active" title="Toggle Agent Dots">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="8" cy="8" r="2.5"/><circle cx="16" cy="9" r="2.5"/><circle cx="12" cy="16" r="2.5"/>
+        </svg>
+    </button>
+    <button type="button" id="toggleNetworkBtn" class="tool-rail-btn active" title="Toggle Pathway Network Layer">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="5" cy="18" r="2.5"/><circle cx="19" cy="6" r="2.5"/><path d="M7 16.5L17 7.5"/>
+        </svg>
+    </button>
+
+    <div class="tool-rail-sep"></div>
+
+    <button type="button" id="railFitBtn" class="tool-rail-btn" title="Fit Venue to View">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+        </svg>
+    </button>
+    <button type="button" id="exportPngBtn" class="tool-rail-btn" title="Export Simulation Frame PNG">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+    </button>
+</th:block>
+
+<th:block th:fragment="canvasArea">
+    <div id="simWorkspaceRoot"
+         class="sim-stage-shell"
+         th:attr="data-event-id=${event.id},data-can-manage-snapshots=${canManageSnapshots},data-initial-state=${initialStateJson}">
+
+        <!-- Mandatory Simulation Disclaimer Banner -->
+        <div class="sim-disclaimer-strip" role="note">
+            <strong>Simplified Planning Simulation:</strong>
+            <span th:text="${workspace.disclaimer}">
+                Simplified Planning Simulation — Designed for relative layout comparison, not exact real-world emergency or stampede prediction.
+            </span>
+        </div>
+
+        <div class="sim-canvas-stage">
+            <!-- Single Run Playback View -->
+            <div id="playbackStage" class="sim-playback-wrap">
+                <canvas id="simCanvas" aria-label="Top-down deterministic crowd simulation canvas"></canvas>
+
+                <div id="simEmptyOverlay" class="canvas-empty-overlay"
+                     th:style="${workspace.layoutReadyForSimulation} ? 'display:none;' : 'display:flex;'">
+                    <div class="canvas-empty-card" style="pointer-events: auto;">
+                        <h3 style="margin-bottom: 6px;">Pathway Network Required</h3>
+                        <p class="text-secondary" style="font-size: 13px; margin-bottom: 12px;"
+                           th:text="${workspace.readinessMessage}">
+                            Add Entry Gate, Exit Gate, and Pathway Edges in Venue Plan -> Pathways to run simulations.
+                        </p>
+                        <a th:href="@{/events/{id}/venue(id=${event.id}, mode='pathways')}" class="btn btn-primary btn-sm">
+                            Open Pathways Editor
+                        </a>
+                    </div>
+                </div>
+
+                <div class="zoom-controls" aria-label="Canvas zoom controls">
+                    <button type="button" id="zoomOutBtn" class="btn btn-ghost btn-sm" title="Zoom Out">-</button>
+                    <button type="button" id="zoom100Btn" class="btn btn-ghost btn-sm mono" title="Reset Zoom">100%</button>
+                    <button type="button" id="zoomInBtn" class="btn btn-ghost btn-sm" title="Zoom In">+</button>
+                    <button type="button" id="zoomFitBtn" class="btn btn-ghost btn-sm" title="Fit Site">Fit</button>
+                </div>
+
+                <div class="canvas-legend">
+                    <div class="legend-header">
+                        <strong>Agents &amp; Density</strong>
+                        <button type="button" id="legendToggleBtn" class="legend-toggle-btn">Hide</button>
+                    </div>
+                    <div id="legendList" class="legend-list">
+                        <div class="legend-item">
+                            <span class="legend-swatch" style="background: #2563EB; border-color: #1D4ED8; border-radius: 999px;"></span>
+                            <span>Walking</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-swatch" style="background: #F59E0B; border-color: #B45309; border-radius: 999px;"></span>
+                            <span>Queuing</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-swatch" style="background: #DC2626; border-color: #991B1B; border-radius: 999px;"></span>
+                            <span>Congested / Stalled</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-swatch" style="background: #0F766E; border-color: #065F46; border-radius: 999px;"></span>
+                            <span>Exiting</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-swatch" style="background: rgba(220, 38, 38, 0.35); border-color: #DC2626;"></span>
+                            <span>High-Density Cell (&ge; threshold)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Side-by-Side Before-and-After Comparison View -->
+            <div id="compareStage" class="sim-compare-wrap" style="display: none;">
+                <div class="sim-compare-grid">
+                    <div class="sim-compare-pane">
+                        <div class="sim-compare-header">
+                            <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+                                <span class="badge badge-neutral">BEFORE</span>
+                                <span id="beforePaneTitle" style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Select Before Snapshot</span>
+                            </div>
+                            <span id="beforePaneLive" class="mono text-secondary" style="font-size: 11px;">—</span>
+                        </div>
+                        <div class="sim-compare-canvas-box">
+                            <canvas id="simBeforeCanvas" aria-label="Before layout simulation canvas"></canvas>
+                        </div>
+                    </div>
+                    <div class="sim-compare-pane">
+                        <div class="sim-compare-header">
+                            <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+                                <span class="badge badge-info">AFTER</span>
+                                <span id="afterPaneTitle" style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Select After Snapshot</span>
+                            </div>
+                            <span id="afterPaneLive" class="mono text-secondary" style="font-size: 11px;">—</span>
+                        </div>
+                        <div class="sim-compare-canvas-box">
+                            <canvas id="simAfterCanvas" aria-label="After layout simulation canvas"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4 Compact .mono Delta Cards -->
+                <div class="sim-delta-bar" id="compareDeltaBar">
+                    <div class="sim-delta-card" id="deltaCardDensity">
+                        <div class="sim-delta-label">Peak Local Density</div>
+                        <div class="sim-delta-values mono">
+                            <span id="deltaDensityVal">—</span>
+                            <span id="deltaDensityBadge" class="badge badge-neutral">—</span>
+                        </div>
+                        <div id="deltaDensitySub" class="sim-delta-sub mono">Before — · After —</div>
+                    </div>
+                    <div class="sim-delta-card" id="deltaCardQueue">
+                        <div class="sim-delta-label">Peak Queue &amp; Max Wait</div>
+                        <div class="sim-delta-values mono">
+                            <span id="deltaQueueVal">—</span>
+                            <span id="deltaQueueBadge" class="badge badge-neutral">—</span>
+                        </div>
+                        <div id="deltaQueueSub" class="sim-delta-sub mono">Wait — s · Before/After —</div>
+                    </div>
+                    <div class="sim-delta-card" id="deltaCardCongestion">
+                        <div class="sim-delta-label">Bottleneck Congestion</div>
+                        <div class="sim-delta-values mono">
+                            <span id="deltaCongestionVal">—</span>
+                            <span id="deltaCongestionBadge" class="badge badge-neutral">—</span>
+                        </div>
+                        <div id="deltaCongestionSub" class="sim-delta-sub mono">Before — · After —</div>
+                    </div>
+                    <div class="sim-delta-card" id="deltaCardClearance">
+                        <div class="sim-delta-label">P95 Clearance &amp; Blocked</div>
+                        <div class="sim-delta-values mono">
+                            <span id="deltaClearanceVal">—</span>
+                            <span id="deltaClearanceBadge" class="badge badge-neutral">—</span>
+                        </div>
+                        <div id="deltaClearanceSub" class="sim-delta-sub mono">Unserved —</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Playback & Timeline Scrubber Bar -->
+        <div class="sim-playback-bar">
+            <button type="button" id="playPauseBtn" class="btn btn-primary btn-sm" style="min-width: 72px;">Play</button>
+            <button type="button" id="resetPlaybackBtn" class="btn btn-secondary btn-sm">Reset</button>
+
+            <div class="sim-speed-group" role="group" aria-label="Playback speed">
+                <button type="button" class="sim-speed-btn" data-speed="0.5">0.5x</button>
+                <button type="button" class="sim-speed-btn active" data-speed="1">1x</button>
+                <button type="button" class="sim-speed-btn" data-speed="2">2x</button>
+                <button type="button" class="sim-speed-btn" data-speed="5">5x</button>
+            </div>
+
+            <input id="simScrubber" class="sim-scrubber" type="range" min="0" max="0" step="1" value="0" aria-label="Simulation timeline scrubber">
+
+            <span id="simClockReadout" class="mono" style="font-size: 12px; font-weight: 600;">00:00 / 00:00</span>
+
+            <div class="sim-telemetry-group mono">
+                <span>Active: <strong id="telActive">0</strong></span>
+                <span>Queue: <strong id="telQueue">0</strong></span>
+                <span>Congested: <strong id="telCongested">0</strong></span>
+                <span>Exited: <strong id="telExited">0</strong></span>
+                <span>Peak &rho;: <strong id="telPeakDensity">0.00</strong> p/m&sup2;</span>
+            </div>
+        </div>
+    </div>
+
+    <dialog id="snapshotDialog" class="modal">
+        <div class="card-header">
+            <h3>Capture Layout Snapshot</h3>
+            <button type="button" id="closeSnapshotDialogBtn" class="btn btn-ghost btn-sm">Close</button>
+        </div>
+        <div class="card-body">
+            <div class="form-group">
+                <label class="form-label" for="modalSnapshotLabel">Snapshot Label</label>
+                <input id="modalSnapshotLabel" type="text" maxlength="160" class="form-control"
+                       placeholder="e.g., Before — Narrow Pinch V1">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" for="modalSnapshotNotes">Notes (optional)</label>
+                <input id="modalSnapshotNotes" type="text" maxlength="500" class="form-control"
+                       placeholder="Key layout changes captured in this version">
+            </div>
+            <div class="form-actions">
+                <button type="button" id="confirmCaptureSnapshotBtn" class="btn btn-primary btn-sm">Save Snapshot</button>
+                <button type="button" id="cancelCaptureSnapshotBtn" class="btn btn-secondary btn-sm">Cancel</button>
+            </div>
+        </div>
+    </dialog>
+
+    <script type="module" th:src="@{/js/sim-player.js}"></script>
+</th:block>
+
+<th:block th:fragment="inspectorBody">
+    <div class="inspector-tabs" role="tablist">
+        <button type="button" class="inspector-tab active" data-tab="setup">Run &amp; Setup</button>
+        <button type="button" class="inspector-tab" data-tab="snapshots">
+            Snapshots <span id="snapshotCountBadge" class="badge badge-neutral" style="margin-left: 4px;"
+                            th:text="${#lists.size(workspace.snapshots)}">0</span>
+        </button>
+        <button type="button" class="inspector-tab" data-tab="metrics">Metrics</button>
+    </div>
+
+    <div class="inspector-body">
+        <!-- Tab 1: Run & Setup -->
+        <div class="inspector-pane active" data-pane="setup">
+            <div id="singleRunSection" class="inspector-section">
+                <div class="inspector-section-title">Single Simulation Setup</div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="runSnapshotSelect">Target Layout Snapshot</label>
+                    <select id="runSnapshotSelect" class="form-control">
+                        <option value="">Live Current Layout (Auto-Snapshot)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="compareSetupSection" class="inspector-section" style="display: none;">
+                <div class="inspector-section-title">Paired Before / After Snapshots</div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="beforeSnapshotSelect">Before Snapshot (Baseline)</label>
+                    <select id="beforeSnapshotSelect" class="form-control"></select>
+                </div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="afterSnapshotSelect">After Snapshot (Remediated)</label>
+                    <select id="afterSnapshotSelect" class="form-control"></select>
+                </div>
+            </div>
+
+            <div class="inspector-section">
+                <div class="inspector-section-title">Scenario &amp; Seed Parameters</div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="scenarioSelect">Scenario</label>
+                    <select id="scenarioSelect" class="form-control">
+                        <option th:each="sc : ${scenarios}"
+                                th:value="${sc.name()}"
+                                th:text="${sc.displayName}">Normal Operations</option>
+                    </select>
+                </div>
+                <p id="scenarioDescText" class="text-secondary" style="font-size: 12px;"></p>
+
+                <div id="targetEdgeGroup" class="form-group" style="display: none; margin-bottom: 4px;">
+                    <label class="form-label" for="targetEdgeSelect">Corridor to Block</label>
+                    <select id="targetEdgeSelect" class="form-control"></select>
+                </div>
+                <div id="targetExitGroup" class="form-group" style="display: none; margin-bottom: 4px;">
+                    <label class="form-label" for="targetExitSelect">Exit Gate to Close</label>
+                    <select id="targetExitSelect" class="form-control"></select>
+                </div>
+                <div id="disruptionTimeGroup" class="form-group" style="display: none; margin-bottom: 4px;">
+                    <label class="form-label" for="disruptionStartInput">Disruption Start (s)</label>
+                    <input id="disruptionStartInput" type="number" min="0" max="900" step="5" value="0" class="form-control mono">
+                </div>
+
+                <div class="form-grid-2">
+                    <div class="form-group" style="margin-bottom: 4px;">
+                        <label class="form-label" for="seedInput">Random Seed</label>
+                        <input id="seedInput" type="number" step="1" value="42" class="form-control mono">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 4px;">
+                        <label class="form-label" for="agentCountInput">Agents (20–2500)</label>
+                        <input id="agentCountInput" type="number" min="20" max="2500" step="10" value="350" class="form-control mono">
+                    </div>
+                </div>
+
+                <div class="form-grid-2">
+                    <div class="form-group" style="margin-bottom: 4px;">
+                        <label class="form-label" for="durationInput">Duration (s)</label>
+                        <input id="durationInput" type="number" min="60" max="1800" step="30" value="300" class="form-control mono">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 4px;">
+                        <label class="form-label" for="densityThresholdInput">High-&rho; Limit (p/m&sup2;)</label>
+                        <input id="densityThresholdInput" type="number" min="0.5" max="6.0" step="0.1" value="2.0" class="form-control mono">
+                    </div>
+                </div>
+
+                <div class="form-actions" style="margin-top: 4px;">
+                    <button type="button" id="inspectorRunBtn" class="btn btn-primary btn-sm"
+                            th:disabled="${!workspace.layoutReadyForSimulation}">
+                        Run Simulation
+                    </button>
+                    <button type="button" id="inspectorCompareBtn" class="btn btn-primary btn-sm" style="display: none;">
+                        Run Paired Comparison
+                    </button>
+                </div>
+            </div>
+
+            <div class="inspector-section">
+                <div class="inspector-section-title">Saved Simulation Runs (<span id="runsCountLabel" class="mono">0</span>)</div>
+                <div id="runsList" style="display: flex; flex-direction: column; gap: 6px;"></div>
+            </div>
+        </div>
+
+        <!-- Tab 2: Snapshots -->
+        <div class="inspector-pane" data-pane="snapshots">
+            <div class="inspector-section" th:if="${canManageSnapshots}">
+                <div class="inspector-section-title">Save Layout Version</div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="inlineSnapshotLabel">Label</label>
+                    <input id="inlineSnapshotLabel" type="text" maxlength="160" class="form-control"
+                           placeholder="e.g., Widened Promenade V2">
+                </div>
+                <div class="form-group" style="margin-bottom: 4px;">
+                    <label class="form-label" for="inlineSnapshotNotes">Notes</label>
+                    <input id="inlineSnapshotNotes" type="text" maxlength="500" class="form-control"
+                           placeholder="Optional summary">
+                </div>
+                <button type="button" id="inlineCaptureSnapshotBtn" class="btn btn-primary btn-sm">
+                    Capture Current Layout
+                </button>
+            </div>
+
+            <div class="inspector-section">
+                <div class="inspector-section-title">Versioned Snapshots</div>
+                <div id="snapshotsList" style="display: flex; flex-direction: column; gap: 8px;"></div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Metrics -->
+        <div class="inspector-pane" data-pane="metrics">
+            <div id="parityWarningBanner" class="banner banner-warn" style="display: none; font-size: 12px;"></div>
+
+            <div class="inspector-section">
+                <div class="inspector-section-title">Simulation KPIs</div>
+                <table class="data-table compact-table">
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th class="num" id="metricsColAHeader">Value</th>
+                            <th class="num" id="metricsColBHeader" style="display: none;">After</th>
+                        </tr>
+                    </thead>
+                    <tbody id="metricsTableBody">
+                        <tr>
+                            <td colspan="2" class="text-muted">Run or select a simulation to inspect metrics.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="inspector-section">
+                <div class="inspector-section-title">Peak Congestion Hotspots</div>
+                <div id="hotspotsList" style="display: flex; flex-direction: column; gap: 6px;"></div>
+            </div>
+
+            <div id="compareNotesSection" class="inspector-section" style="display: none;">
+                <div class="inspector-section-title">Comparison Summary</div>
+                <ul id="compareNotesList" style="margin: 0; padding-left: 16px; font-size: 12px; display: flex; flex-direction: column; gap: 4px;"></ul>
+            </div>
+        </div>
+    </div>
+</th:block>
+
+<th:block th:fragment="statusStrip">
+    <div class="status-group">
+        <span id="cursorCoordsReadout" class="mono">X: 0.0 m, Y: 0.0 m</span>
+        <span id="statusSimText">Simulation · Ready</span>
+        <span id="workspaceMessage" class="text-secondary"></span>
+    </div>
+    <div class="status-group">
+        <button type="button" class="btn btn-ghost btn-sm" data-assistant-toggle="true" title="Open Planning Assistant Drawer">
+            Planning Assistant
+        </button>
+    </div>
+</th:block>
+
+</body>
+</html>

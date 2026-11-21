@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head('Events')}"></head>
+<body th:replace="~{fragments/layout :: page('Events', 'events', null, null, ~{::section})}">
+<section class="stack">
+    <div class="page-header">
+        <div>
+            <h1>Events Workspace</h1>
+            <p class="page-header-subtitle">
+                Manage event plans, category safety checklists, review logs, and supporting documents.
+            </p>
+        </div>
+        <div class="filter-actions" sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')">
+            <form th:action="@{/events/demo-reset}" method="post" style="display: inline;">
+                <button type="submit" class="btn btn-secondary"
+                        onclick="return confirm('Seed or reset the TechnoVyuha Annual Campus Festival walkthrough event?');">
+                    Reset Campus Festival Demo
+                </button>
+            </form>
+            <a th:href="@{/events/new}" class="btn btn-primary">+ New Event</a>
+        </div>
+    </div>
+
+    <div th:if="${successMessage}" class="banner banner-info" role="status" th:text="${successMessage}">Success</div>
+    <div th:if="${errorMessage}" class="banner banner-danger" role="alert" th:text="${errorMessage}">Error</div>
+
+    <div class="card">
+        <div class="card-body">
+            <form th:action="@{/events}" method="get" class="filter-bar">
+                <div class="filter-field filter-field-search">
+                    <label for="q" class="form-label">Search</label>
+                    <input id="q" name="q" type="search" class="form-control"
+                           th:value="${criteria.query()}"
+                           placeholder="Event name, location, or organizer">
+                </div>
+
+                <div class="filter-field">
+                    <label for="category" class="form-label">Category</label>
+                    <select id="category" name="category" class="form-control">
+                        <option value="">All Categories</option>
+                        <option th:each="cat : ${categories}"
+                                th:value="${cat.name()}"
+                                th:text="${cat.displayName}"
+                                th:selected="${criteria.category() == cat}">Category</option>
+                    </select>
+                </div>
+
+                <div class="filter-field">
+                    <label for="status" class="form-label">Status</label>
+                    <select id="status" name="status" class="form-control">
+                        <option value="">All Statuses</option>
+                        <option th:each="st : ${statuses}"
+                                th:value="${st.name()}"
+                                th:text="${st.displayName}"
+                                th:selected="${criteria.status() == st}">Status</option>
+                    </select>
+                </div>
+
+                <div class="filter-field">
+                    <label for="fromDate" class="form-label">Start From</label>
+                    <input id="fromDate" name="fromDate" type="date" class="form-control mono"
+                           th:value="${criteria.fromDate()}">
+                </div>
+
+                <div class="filter-field">
+                    <label for="toDate" class="form-label">Start To</label>
+                    <input id="toDate" name="toDate" type="date" class="form-control mono"
+                           th:value="${criteria.toDate()}">
+                </div>
+
+                <div class="filter-actions">
+                    <button type="submit" class="btn btn-secondary">Filter</button>
+                    <a th:href="@{/events}" class="btn btn-ghost">Reset</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2 class="section-title">Events Directory</h2>
+            <span class="mono text-muted" th:text="${#lists.size(events) + ' events'}">0 events</span>
+        </div>
+
+        <div th:if="${#lists.isEmpty(events)}" class="card-body">
+            <div class="empty-state">
+                <p>No matching events found. Create a new event or adjust your search filters.</p>
+                <a th:href="@{/events/new}"
+                   sec:authorize="hasAnyRole('ADMIN', 'ORGANIZER')"
+                   class="btn btn-primary">+ Create First Event</a>
+            </div>
+        </div>
+
+        <div th:if="${!#lists.isEmpty(events)}" class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Event &amp; Location</th>
+                        <th>Category</th>
+                        <th>Start Schedule</th>
+                        <th class="num">Expected</th>
+                        <th>Organizer / Reviewer</th>
+                        <th>Lifecycle</th>
+                        <th>Safety Review</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="ev : ${events}">
+                        <td>
+                            <a th:href="@{/events/{id}(id=${ev.id})}"
+                               style="font-weight: 600;"
+                               th:text="${ev.name}">Event Name</a>
+                            <div class="text-muted" style="font-size: 12px;"
+                                 th:text="${ev.locationName != null ? ev.locationName : 'Location pending (Draft)'}">Location</div>
+                        </td>
+                        <td th:text="${ev.category.displayName}">Category</td>
+                        <td class="mono"
+                            th:text="${ev.startDateTime != null ? #temporals.format(ev.startDateTime, 'yyyy-MM-dd HH:mm') : 'TBD'}">
+                            2026-11-20 10:00
+                        </td>
+                        <td class="num"
+                            th:text="${ev.expectedAttendance != null ? #numbers.formatInteger(ev.expectedAttendance, 1, 'COMMA') : '—'}">
+                            3,500
+                        </td>
+                        <td>
+                            <div th:text="${ev.organizer.fullName}">Organizer</div>
+                            <div class="text-muted" style="font-size: 12px;"
+                                 th:text="${ev.assignedReviewer != null ? 'Reviewer: ' + ev.assignedReviewer.fullName : 'Reviewer: Unassigned'}">
+                                Reviewer
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge"
+                                  th:classappend="${ev.status.badgeClass}"
+                                  th:text="${ev.status.displayName}">Planning</span>
+                        </td>
+                        <td>
+                            <th:block th:with="rev=${latestReviews[ev.id]}">
+                                <span th:if="${rev != null}"
+                                      class="badge"
+                                      th:classappend="${rev.badgeClass}"
+                                      th:text="${rev.displayName}">Review Documented</span>
+                                <span th:if="${rev == null}" class="badge badge-low">Review Pending</span>
+                            </th:block>
+                        </td>
+                        <td>
+                            <a th:href="@{/events/{id}(id=${ev.id})}" class="btn btn-secondary btn-sm">Open</a>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+</body>
+</html>

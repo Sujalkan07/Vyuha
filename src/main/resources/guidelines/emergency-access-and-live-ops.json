@@ -1,0 +1,55 @@
+{
+  "documentId": "EMERG-OPS",
+  "documentTitle": "Emergency Access, Contingency Outage & Live Occupancy Integrity",
+  "authority": "Vyuha Compiled Emergency & Operations Reference",
+  "publicationYear": 2024,
+  "category": "EMERGENCY_OPS",
+  "categoryDisplayName": "Emergency & Live Ops",
+  "sections": [
+    {
+      "sectionId": "EMERG-OPS-S1.1",
+      "sectionNumber": "Section 1.1",
+      "sectionTitle": "Minimum 3.5 m Unobstructed Ambulance & Fire Tender Access",
+      "topics": ["ambulance", "fire", "3.5m", "emergency lane", "width", "vehicle", "clearance"],
+      "applicableCodes": ["EMERGENCY_LANE_INTRUSION", "AMBULANCE_ROUTE", "FIRE_ROUTE"],
+      "summary": "Emergency vehicle routes require at least 3.5 m continuous clear width without stalls, stages, barricades, or overhead constrictions.",
+      "verbatimQuote": "Emergency ambulance and fire access lanes must maintain a minimum continuous clear width of 3.5 meters free of rigid structures, barricades, or parked service equipment."
+    },
+    {
+      "sectionId": "EMERG-OPS-S1.2",
+      "sectionNumber": "Section 1.2",
+      "sectionTitle": "N-1 Exit & Corridor Redundancy Testing",
+      "topics": ["outage", "closed exit", "blocked corridor", "backup", "redundancy", "detour", "isolated"],
+      "applicableCodes": ["CLOSED_EXIT", "BLOCKED_CORRIDOR", "DISCONNECTED_ZONE", "ISOLATED_EXIT"],
+      "summary": "Test closing any single primary exit or central corridor to ensure no gathering zone becomes isolated and surviving exits retain sufficient egress width.",
+      "verbatimQuote": "Contingency planning should verify N-1 egress redundancy by testing the closure of any single exit gate or main corridor to ensure surviving backup routes prevent zone isolation."
+    },
+    {
+      "sectionId": "EMERG-OPS-S1.3",
+      "sectionNumber": "Section 1.3",
+      "sectionTitle": "External Assembly Points & Authority Command Deference",
+      "topics": ["assembly point", "evacuation", "police", "fire", "authority", "statutory"],
+      "applicableCodes": ["AUTHORITY_DEFERENCE", "OUT_OF_BOUNDS"],
+      "summary": "External assembly points must be situated outside primary egress bottlenecks and all real-world evacuation commands must defer to officially approved response plans and statutory authorities.",
+      "verbatimQuote": "Planning tools support layout contingency evaluation only; all real-world evacuation declarations, crowd dispersal orders, and emergency command decisions belong strictly to statutory police, fire, medical, and civil authorities."
+    },
+    {
+      "sectionId": "EMERG-OPS-S2.1",
+      "sectionNumber": "Section 2.1",
+      "sectionTitle": "Segregated Live Occupancy Channels & Staleness Discipline",
+      "topics": ["live", "occupancy", "manual count", "pass scan", "practice", "stale", "threshold"],
+      "applicableCodes": ["LIVE_OCCUPANCY", "STALE_DATA"],
+      "summary": "Never blend manual headcounts, pass scan telemetry, and practice simulation streams into one combined count; tag every figure with source, timestamp, and staleness warning.",
+      "verbatimQuote": "Live control-centre occupancy displays must keep manual staff counts, electronic pass-scan totals, and practice drill streams strictly segregated with explicit source labels, timestamps, and staleness indicators."
+    },
+    {
+      "sectionId": "EMERG-OPS-S2.2",
+      "sectionNumber": "Section 2.2",
+      "sectionTitle": "Role of Crowd Simulation in Relative Layout Comparison",
+      "topics": ["simulation", "comparison", "before after", "disclaimer", "prediction"],
+      "applicableCodes": ["SIMULATION_INTERPRETATION"],
+      "summary": "Deterministic agent simulations illustrate relative differences between layout snapshots under identical random seeds and are never exact predictions of real-world emergency behavior.",
+      "verbatimQuote": "Planning-stage crowd simulations provide controlled relative comparisons between alternative layouts under fixed assumptions and must never be interpreted as exact predictions of real-world emergency or stampede behavior."
+    }
+  ]
+}
